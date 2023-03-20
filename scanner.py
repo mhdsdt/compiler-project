@@ -8,6 +8,29 @@ class Scanner:
         self.symbol_table = ['break', 'else', 'if', 'int', 'repeat', 'return', 'until', 'void']
         self.errors = []
 
+    def get_current_line(self):
+        return self.buffer.current_line
+
+    def get_next_token(self):
+        pass
+
+    def tokenize(self):
+        while True:
+            tmp_current_line = self.get_current_line()
+            token = self.get_next_token()
+            if token is None:
+                break
+            if self.get_current_line() > tmp_current_line:
+                self.tokens.append([])
+            self.tokens[-1].append(token)
+
+        self._write_to_tokens_file()
+        self._write_to_symbols_file()
+        self._write_to_errors_file()
+
+    def _handle_errors(self):
+        pass
+
     def _write_to_tokens_file(self):
         with open('tokens.txt', 'w') as tokens_file:
             for i, line_tokens in enumerate(self.tokens):
@@ -26,14 +49,3 @@ class Scanner:
             for error in self.errors:
                 line_num, error_str, message = error
                 errors_file.write(f'{line_num}.\t {error_str} - {message}\n')
-
-    def _handle_errors(self):
-        pass
-
-    def get_next_token(self):
-        pass
-
-    def tokenize(self):
-        self._write_to_tokens_file()
-        self._write_to_symbols_file()
-        self._write_to_errors_file()
