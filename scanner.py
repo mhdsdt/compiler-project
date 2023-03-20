@@ -1,9 +1,9 @@
+from util.buffer import Buffer
+
+
 class Scanner:
-    def __init__(self, input_file):
-        self.position = 0
-        self.current_line = 1
-        with open(input_file, 'r') as file:
-            self.input_file = file.read()
+    def __init__(self, input_file_name):
+        self.buffer = Buffer(input_file_name)
         self.tokens = [[]]
         self.symbol_table = ['break', 'else', 'if', 'int', 'repeat', 'return', 'until', 'void']
         self.errors = []
@@ -34,17 +34,6 @@ class Scanner:
         pass
 
     def tokenize(self):
-        self.position = 0
-        self.current_line = 1
-        while True:
-            tmp_current_line = self.current_line
-            token = self.get_next_token()
-            if token is None:
-                break
-            if self.current_line > tmp_current_line:
-                self.tokens.append([])
-            self.tokens[-1].append(token)
-
         self._write_to_tokens_file()
         self._write_to_symbols_file()
         self._write_to_errors_file()
