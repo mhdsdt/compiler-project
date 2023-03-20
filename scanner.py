@@ -1,4 +1,4 @@
-from util.buffer import Buffer
+from utils.buffer import Buffer
 
 
 class Scanner:
