@@ -31,11 +31,12 @@ class Scanner:
                 lexeme = ''
             elif isinstance(curr_state, DFANode) and curr_state.finished:
                 if curr_state.roll_back:
-                    self.buffer.rollback()
+                    self.buffer.rollback(lexeme[-1])
                     lexeme = lexeme[: -1]
                 return curr_state.get_token(lexeme)
             elif isinstance(curr_state, ErrorNode):
-                self.errors.append((self.get_current_line(), curr_state.handle_error()))
+                error = curr_state.handle_error()
+                self.errors.append((self.get_current_line(), error[0], error[1]))
                 curr_state = get_default_dfa()
                 lexeme = ''
 

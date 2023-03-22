@@ -14,11 +14,15 @@ class Buffer:
     def get_next_char(self):
         if self.buffer_pos == len(self.content):
             self.__fill_buffer()
+        if self.buffer_pos == len(self.content):
+            return ''
         next_char = self.content[self.buffer_pos]
         self.buffer_pos += 1
         if next_char is '\n':
             self.current_line += 1
         return next_char
 
-    def rollback(self):
+    def rollback(self, char):
+        if char == '\n':
+            return
         self.buffer_pos -= 1
