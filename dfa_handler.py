@@ -52,27 +52,13 @@ class ErrorNode:
             return self.lexeme, Error.InvalidNumber.value
         if self.dfa_node.token_type == TokenType.Comment.value:
             if self.lexeme[0] == '/':
-                return '/* comm…', Error.UnclosedComment.value
+                return '/* comm...', Error.UnclosedComment.value
             return '*/', Error.UnmatchedComment.value
 
 
-class Edge:
+class RegexEdge:
 
-    def __init__(self, token_type):
-        self.token_type = token_type
-        self.char = None
-
-    def set_char(self, char):
-        self.char = char
-
-    def get_token_type(self):
-        return self.token_type
-
-
-class RegexEdge(Edge):
-
-    def __init__(self, token_type):
-        super(RegexEdge, self).__init__(token_type)
+    def __init__(self):
         self.accepted_chars = []
 
     def accept(self, char):

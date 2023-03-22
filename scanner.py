@@ -3,7 +3,6 @@ from utils.tables import *
 from regex_builder import get_default_dfa
 from dfa_handler import DFANode, ErrorNode, NonTokenizableNode
 from enums_constants import get_keywords
-from enums_constants import TokenType
 
 
 class Scanner:
@@ -35,8 +34,11 @@ class Scanner:
                     lexeme = lexeme[: -1]
                 return curr_state.get_token(lexeme)
             elif isinstance(curr_state, ErrorNode):
-                error = curr_state.handle_error()
-                self.errors.append((self.get_current_line(), error[0], error[1]))
+                try:
+                    error = curr_state.handle_error()
+                    self.errors.append((self.get_current_line(), error[0], error[1]))
+                except Exception as e:
+                    print(lexeme)
                 curr_state = get_default_dfa()
                 lexeme = ''
 

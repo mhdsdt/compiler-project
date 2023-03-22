@@ -11,7 +11,7 @@ class TokensTable:
         with open(ROOT_DIR + 'tokens.txt', 'w') as tokens_file:
             for i, line_tokens in enumerate(self.tokens):
                 tokens_as_string = [f'({token[0]}, {token[1]})' for token in line_tokens]
-                tokens_file.write(f'{i + 1}.\t' + ' '.join(tokens_as_string))
+                tokens_file.write(f'{i + 1}.\t' + ' '.join(tokens_as_string) + '\n')
 
 
 class SymbolsTable:
