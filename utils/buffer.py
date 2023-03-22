@@ -22,4 +22,3 @@ class Buffer:
 
     def rollback(self):
         self.buffer_pos -= 1
-

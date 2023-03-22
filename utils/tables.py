@@ -35,4 +35,3 @@ class ErrorsTable:
             for error in self.errors:
                 line_num, error_str, message = error
                 errors_file.write(f'{line_num}.\t {error_str} - {message}\n')
-
