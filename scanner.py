@@ -2,7 +2,7 @@ from utils.buffer import Buffer
 from utils.tables import *
 from regex_builder import get_default_dfa
 from dfa_handler import DFANode, ErrorNode, NonTokenizableNode
-from enums_constants import get_keywords
+from enums_constants import get_keywords, TokenType
 
 
 class Scanner:
@@ -31,7 +31,7 @@ class Scanner:
             elif isinstance(curr_state, DFANode) and curr_state.finished:
                 if curr_state.roll_back:
                     self.buffer.rollback(lexeme[-1])
-                    lexeme = lexeme[: -1]
+                    lexeme = lexeme[:-1]
                 return curr_state.get_token(lexeme)
             elif isinstance(curr_state, ErrorNode):
                 try:
@@ -48,9 +48,14 @@ class Scanner:
             token = self.get_next_token()
             if token is None:
                 break
-            if self.get_current_line() > tmp_current_line:
+            while self.get_current_line() > tmp_current_line:
                 self.tokens.append([])
+                tmp_current_line += 1
             self.tokens[-1].append(token)
+
+            token_type, token_value = token
+            if token_type == TokenType.Id.value and token_value not in self.symbols:
+                self.symbols.append(token_value)
 
         self.__create_tables()
         self.__export_tables()
