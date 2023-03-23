@@ -9,6 +9,8 @@ class Buffer:
 
     def __fill_buffer(self):
         self.content = self.input_file.read(self.buffer_size)
+        # if len(self.content) < self.buffer_size:
+        #     self.content += chr(26)
         self.buffer_pos = 0
 
     def get_next_char(self):
@@ -18,11 +20,11 @@ class Buffer:
             return ''
         next_char = self.content[self.buffer_pos]
         self.buffer_pos += 1
-        if next_char is '\n':
+        if next_char == '\n':
             self.current_line += 1
         return next_char
 
     def rollback(self, char):
         if char == '\n':
-            return
+            self.current_line -= 1
         self.buffer_pos -= 1
