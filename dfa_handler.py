@@ -46,14 +46,15 @@ class ErrorNode:
         self.lexeme = lexeme
 
     def handle_error(self):
-        if self.lexeme[-1] not in get_comments() + get_symbols() + get_digits() + get_alphabets() + get_white_spaces():
-            return self.lexeme, Error.InvalidInput.value
         if self.dfa_node.token_type == TokenType.Num.value:
             return self.lexeme, Error.InvalidNumber.value
-        if self.dfa_node.token_type == TokenType.Comment.value:
-            if self.lexeme[0] == '/':
-                return '/* comm...', Error.UnclosedComment.value
-            return '*/', Error.UnmatchedComment.value
+        if self.lexeme.startswith("/*"):
+            if len(self.lexeme) < 8:
+                return self.lexeme, Error.UnclosedComment.value
+            return self.lexeme[0:7] + "...", Error.UnclosedComment.value
+        if self.lexeme == "*/":
+            return self.lexeme, Error.UnmatchedComment.value
+        return self.lexeme, Error.InvalidInput.value
 
 
 class RegexEdge:
