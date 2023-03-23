@@ -60,20 +60,40 @@ class ErrorNode:
 class RegexEdge:
 
     def __init__(self):
-        self.accepted_chars = []
+        self.accepted_range = []
+        self.rejected_range = []
 
-    def accept(self, char):
-        if char not in self.accepted_chars:
-            self.accepted_chars.append(char)
+    def accept(self, start, end=None):
+        if not end:
+            end = start
+        self.accepted_range.append((start, end))
         return self
 
-    def reject(self, char):
-        if char in self.accepted_chars:
-            self.accepted_chars.remove(char)
+    def reject(self, start, end=None):
+        if not end:
+            end = start
+        self.rejected_range.append((start, end))
         return self
+
+    def is_in_accepted(self, char):
+        for start, end in self.accepted_range:
+            if start <= char <= end:
+                return True
+        return False
+
+    def is_not_in_rejected(self, char):
+        for start, end in self.rejected_range:
+            if start <= char <= end:
+                return False
+        return True
 
     def can_accept(self, char):
-        return char in self.accepted_chars
+        if len(self.rejected_range) == 0:
+            return self.is_in_accepted(char)
+        elif len(self.accepted_range) == 0:
+            return self.is_not_in_rejected(char)
+        else:
+            return self.is_in_accepted(char) and self.is_not_in_rejected(char)
 
     def accept_digits(self):
         for d in get_digits():
