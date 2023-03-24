@@ -1,6 +1,6 @@
 from utils.buffer import Buffer
 from utils.tables import *
-from regex_builder import get_default_dfa
+from default_dfa import get_default_dfa
 from dfa_handler import DFANode, ErrorNode, NonTokenizableNode
 from enums_constants import get_keywords, TokenType
 
@@ -16,31 +16,44 @@ class Scanner:
     def get_current_line(self):
         return self.buffer.current_line
 
+    def get_defaults(self):
+        return get_default_dfa(), self.get_current_line(), ''
+
     def get_next_token(self):
-        curr_state = get_default_dfa()
-        lexeme = ''
+        curr_state, tmp_curr_line, lexeme = self.get_defaults()
+        eof = False
+
         while True:
             next_char = self.buffer.get_next_char()
+
             if not next_char:
-                return
-            lexeme += next_char
-            curr_state = curr_state.accept(lexeme)
-            if isinstance(curr_state, NonTokenizableNode):
-                curr_state = get_default_dfa()
-                lexeme = ''
-            elif isinstance(curr_state, DFANode) and curr_state.finished:
+                eof = True
+            else:
+                lexeme += next_char
+                curr_state = curr_state.accept(lexeme)
+
+            if isinstance(curr_state, NonTokenizableNode) and (curr_state.finished or eof):
+                if eof and lexeme.startswith('/*'):
+                    self.handle_error(ErrorNode(curr_state, lexeme), tmp_curr_line)
+                curr_state, tmp_curr_line, lexeme = self.get_defaults()
+            elif isinstance(curr_state, DFANode) and (curr_state.finished or eof):
                 if curr_state.roll_back:
                     self.buffer.rollback(lexeme[-1])
                     lexeme = lexeme[:-1]
                 return curr_state.get_token(lexeme)
             elif isinstance(curr_state, ErrorNode):
-                try:
-                    error = curr_state.handle_error()
-                    self.errors.append((self.get_current_line(), error[0], error[1]))
-                except Exception as e:
-                    print(lexeme)
-                curr_state = get_default_dfa()
-                lexeme = ''
+                self.handle_error(curr_state, tmp_curr_line)
+                curr_state, tmp_curr_line, lexeme = self.get_defaults()
+
+            if eof:
+                return
+
+    def handle_error(self, error_state, current_line):
+        error = list(error_state.handle_error())
+        if error_state.dfa_node.roll_back:
+            self.buffer.rollback(error_state.lexeme[-1])
+            error[0] = error[0][:-1]
+        self.errors.append((current_line, error[0], error[1]))
 
     def tokenize(self):
         while True:
