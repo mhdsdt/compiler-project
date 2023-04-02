@@ -1,5 +1,8 @@
 from scanner import Scanner
 
+# Mahdi Saadatbakht     99105475
+# Mohammad Mowlavi      99105753
+
 
 class Compiler:
     def __init__(self, input_file):
