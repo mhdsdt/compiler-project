@@ -1,8 +1,8 @@
 from utils.buffer import Buffer
 from utils.tables import *
-from default_dfa import get_default_dfa
-from dfa_handler import DFANode, ErrorNode, NonTokenizableNode
-from enums_constants import get_keywords, TokenType
+from scanner.default_dfa import get_default_dfa
+from scanner.dfa_handler import DFANode, ErrorNode, NonTokenizableNode
+from scanner.enums_constants import get_keywords, TokenType
 
 
 class Scanner:
@@ -79,6 +79,6 @@ class Scanner:
         self.errors_table = ErrorsTable(self.errors)
 
     def __export_tables(self):
-        self.tokens_table.export()
-        self.symbols_table.export()
-        self.errors_table.export()
+        self.tokens_table.export_lexical_errors()
+        self.symbols_table.export_lexical_errors()
+        self.errors_table.export_lexical_errors()

@@ -1,4 +1,5 @@
-from scanner import Scanner
+from scanner.scanner import Scanner
+from parser.parser import Parser
 
 # Mahdi Saadatbakht     99105475
 # Mohammad Mowlavi      99105753
@@ -9,8 +10,8 @@ class Compiler:
         self.input_file = input_file
 
     def compile(self):
-        scanner = Scanner(self.input_file)
-        scanner.tokenize()
+        parser = Parser(Scanner(self.input_file))
+        parser.parse()
 
 
 def main():

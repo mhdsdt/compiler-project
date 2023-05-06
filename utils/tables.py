@@ -35,10 +35,17 @@ class ErrorsTable:
             else:
                 self.errors[line_num] = [(error_str, message)]
 
-    def export(self):
+    def export_lexical_errors(self):
         with open(ROOT_DIR + 'lexical_errors.txt', 'w') as errors_file:
             if not self.errors:
                 return errors_file.write('There is no lexical error.')
             for line_num, errors in self.errors.items():
                 errors_as_string = ' '.join([f'({error[0]}, {error[1]})' for error in errors])
                 errors_file.write(f'{line_num}.\t{errors_as_string} \n')
+
+    def export_syntax_errors(self):
+        with open(ROOT_DIR + 'lexical_errors.txt', 'w') as f:
+            if not self.errors:
+                f.write("There is no syntax error.\n")
+            for line_num, error in self.errors:
+                f.write(f"#{line_num} : syntax error, {error}\n")

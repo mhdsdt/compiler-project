@@ -1,5 +1,5 @@
-from dfa_handler import DFANode, RegexEdge, NonTokenizableNode
-from enums_constants import TokenType
+from scanner.dfa_handler import DFANode, RegexEdge, NonTokenizableNode
+from scanner.enums_constants import TokenType
 
 
 def build_dfa_of_num(start_dfa_node):
@@ -54,7 +54,6 @@ def build_rename_of_symbol(start_dfa_node):
 
     # create dfa
     start_dfa_node.add_next_node(edge=symbols_except_equal_star, next_node=symbols_group)
-    # symbols_group.add_next_node(edge=everything, next_node=symbol_assign_star_finisher)
     symbol_equals.add_next_node(edge=everything, next_node=symbol_assign_star_finisher)
     start_dfa_node.add_next_node(edge=symbol_equal_edge, next_node=symbol_assign)
     start_dfa_node.add_next_node(edge=symbol_star_edge, next_node=symbol_star)
@@ -76,7 +75,6 @@ def build_rename_of_whitespace(start_dfa_node):
 
 def build_rename_of_comment(start_dfa_node):
     # states
-    # comment_error = NonTokenizableNode(finished=True, roll_back=True, token_type=TokenType.Comment.value)
     comment_start = NonTokenizableNode(token_type=TokenType.Comment.value)
     comment_middle = NonTokenizableNode(token_type=TokenType.Comment.value)
     comment_pre_final = NonTokenizableNode(token_type=TokenType.Comment.value)
@@ -91,7 +89,6 @@ def build_rename_of_comment(start_dfa_node):
     # create dfa
     start_dfa_node.add_next_node(edge=symbol_slash, next_node=comment_start)
     comment_start.add_next_node(edge=symbol_star, next_node=comment_middle)
-    # comment_start.add_next_node(edge=symbol_slash, next_node=comment_error)
     comment_middle.add_next_node(edge=everything_except_star, next_node=comment_middle)
     comment_middle.add_next_node(edge=symbol_star, next_node=comment_pre_final)
     comment_pre_final.add_next_node(edge=symbol_star, next_node=comment_pre_final)

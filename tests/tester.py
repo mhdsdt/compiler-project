@@ -3,9 +3,9 @@ import subprocess
 import shutil
 import filecmp
 
-
-ROOT_DIR = '../../'
-OUTPUT_FILES = {'lexical_errors.txt': 0, 'symbol_table.txt': 0, 'tokens.txt': 0}
+ROOT_DIR = '../'
+OUTPUT_FILES = None
+TESTS_PATH = None
 
 
 class Color:
@@ -18,14 +18,14 @@ class Color:
 
 
 def get_number_of_tests():
-    return len(next(os.walk('./testcases/'))[1])
+    return len(next(os.walk(f'{TESTS_PATH}/'))[1])
 
 
 def is_output_correct(i):
     print(f'---------- T{i:02} ------------')
     result = True
     for file in OUTPUT_FILES.keys():
-        dst = f'./testcases/T{i:02}/{file}'
+        dst = f'{TESTS_PATH}/T{i:02}/{file}'
         is_identical = filecmp.cmp(ROOT_DIR + file, dst)
         if is_identical:
             OUTPUT_FILES[file] += 1
@@ -43,11 +43,14 @@ def remove_output_files():
         os.remove(ROOT_DIR + file)
 
 
-def main():
-    num_tests = get_number_of_tests()
+def test(output_files, tests_path, num_tests=10):
+    global OUTPUT_FILES, TESTS_PATH
+    OUTPUT_FILES = output_files
+    TESTS_PATH = tests_path
+
     num_passed_tests = 0
     for i in range(1, num_tests + 1):
-        src = f'./testcases/T{i:02}/input.txt'
+        src = f'{tests_path}/T{i:02}/input.txt'
         dst = ROOT_DIR + 'input.txt'
         shutil.copyfile(src, dst)
         subprocess.run(['python', 'compiler.py'], cwd=ROOT_DIR)
@@ -63,7 +66,3 @@ def main():
     for file, num_passed in OUTPUT_FILES.items():
         print(f'{file.split(".")[0]}: {num_passed} / {num_tests}')
     print(f'{Color.BOLD}TOTAL: {num_passed_tests} / {num_tests}{Color.END}')
-
-
-if __name__ == '__main__':
-    main()

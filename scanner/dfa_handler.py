@@ -1,5 +1,4 @@
-from default_dfa import *
-from enums_constants import *
+from scanner.enums_constants import *
 
 
 class DFANode:
@@ -54,7 +53,6 @@ class ErrorNode:
             return self.lexeme[0:7] + "...", Error.UnclosedComment.value
         if self.lexeme == "*/":
             return self.lexeme, Error.UnmatchedComment.value
-        # if self.lexeme == '//' or self.lexeme in ['/' + i for i in get_white_spaces()]:
         if self.lexeme[0] == '/' and self.lexeme[1] != '#':
             self.dfa_node.roll_back = True
         return self.lexeme, Error.InvalidInput.value
