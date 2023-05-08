@@ -40,6 +40,7 @@ class Scanner:
                 if curr_state.roll_back:
                     self.buffer.rollback(lexeme[-1])
                     lexeme = lexeme[:-1]
+                curr_state.set_lexeme(lexeme)
                 return curr_state.get_token(lexeme)
             elif isinstance(curr_state, ErrorNode):
                 self.handle_error(curr_state, tmp_curr_line)

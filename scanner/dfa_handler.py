@@ -8,6 +8,7 @@ class DFANode:
         self.token_type = token_type
         self.roll_back = roll_back
         self.next_nodes = []
+        self.lexeme = None
 
     def add_next_node(self, edge, next_node):
         self.next_nodes.append((next_node, edge))
@@ -31,6 +32,9 @@ class DFANode:
             return TokenType.Whitespace.value, lexeme
         if self.token_type == TokenType.Symbol.value:
             return TokenType.Symbol.value, lexeme
+
+    def set_lexeme(self, lexeme):
+        self.lexeme = lexeme
 
 
 class NonTokenizableNode(DFANode):
