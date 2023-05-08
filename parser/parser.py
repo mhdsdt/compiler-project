@@ -41,7 +41,6 @@ class Parser:
         elif isinstance(last_stmt, TerminalNode):
             if last_stmt.name != self.last_token.token_type:
                 self.errors.append((self.scanner.get_current_line(), f"syntax error, missing {self.last_token.lexeme}"))
-                self.remove_stmts(last_stmt)
             elif self.stack:
                 self.last_token = self.scanner.get_next_token()
 
@@ -68,10 +67,3 @@ class Parser:
             right_hand_side = self.get_right_hand_side_from_table(last_stmt)
 
         self.errors.append((self.scanner.get_current_line(), f"syntax error, missing {self.last_token.lexeme}"))
-        self.remove_stmts(right_hand_side[0])
-
-    def remove_stmts(self, stmt):
-        if stmt.parent:
-            children = list(stmt.parent.children)
-            children.remove(stmt)
-            stmt.parent.children = tuple(children)
