@@ -24,9 +24,10 @@ class Parser:
         for nt in self.grammar.non_terminals:
             for follow in nt.follow:
                 if not self.table.get(nt.name).get(follow):
-                    self.table[nt.name][follow.name] = 'SYNCH'
+                    self.table[nt.name][follow.name] = ['SYNCH']
 
     def get_rhs_from_table(self, top_of_stack):
+
         return []
 
     # def add_error(self, top_of_stack, token):
