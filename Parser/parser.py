@@ -27,8 +27,8 @@ class Parser:
                     self.table[nt.name][follow.name] = ['SYNCH']
 
     def get_rhs_from_table(self, top_of_stack):
-
-        return []
+        lexeme = self.last_token[1]
+        return self.table.get(top_of_stack).get(lexeme)
 
     # def add_error(self, top_of_stack, token):
     #     self.errors.append((self.scanner.get_current_line(), 'syntax error, missing ]'))
