@@ -56,7 +56,7 @@ class Parser:
             self._update_stack()
 
     def export_parse_tree(self):
-        with open(ROOT_DIR + 'lexical_errors.txt', 'w') as f:
+        with open(ROOT_DIR + 'parse_tree.txt', 'w') as f:
             for pre, _, node in RenderTree(self.root):
                 f.write('%s%s\n' % (pre, node.name))
 
