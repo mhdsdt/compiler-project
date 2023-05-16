@@ -12,19 +12,19 @@ class Parser:
         self.grammar = grammar
         self.errors = []
         self.stack = []
-        self.table = [[None for _ in range(len(self.grammar.terminals))] for _ in
-                      range(len(self.grammar.non_terminals))]
+        self.table = dict()
         self.last_token = None
         self.create_parse_table()
 
     def create_parse_table(self):
         for rule in self.grammar.product_rules:
-            self.table[rule.lhs.name][rule.rhs[0].name] = [p.name for p in rule.rhs]
+            self.table[rule.lhs.name] = dict()
+            self.table[rule.lhs.name][rule.lhs.first.name] = [p.name for p in rule.rhs]
 
         for nt in self.grammar.non_terminals:
-            for item in nt.follow:
-                if (nt.name, item.name) not in self.table:
-                    self.table[(nt.name, item.name)] = "synch"
+            for follow in nt.follow:
+                if not self.table.get(nt.name).get(follow):
+                    self.table[nt.name][follow.name] = 'SYNCH'
 
     def get_rhs_from_table(self, top_of_stack):
         return []
