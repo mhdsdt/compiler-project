@@ -26,13 +26,16 @@ def is_output_correct(i):
     result = True
     for file in OUTPUT_FILES.keys():
         dst = f'{TESTS_PATH}/T{i:02}/{file}'
-        print(ROOT_DIR + file, dst)
-        is_identical = filecmp.cmp(ROOT_DIR + file, dst)
-        if is_identical:
-            OUTPUT_FILES[file] += 1
-            string_to_print = f'{Color.GREEN}PASSED{Color.END}'
-        else:
+        if not os.path.exists(ROOT_DIR + file):
+            is_identical = False
             string_to_print = f'{Color.RED}FAILED{Color.END}'
+        else:
+            is_identical = filecmp.cmp(ROOT_DIR + file, dst)
+            if is_identical:
+                OUTPUT_FILES[file] += 1
+                string_to_print = f'{Color.GREEN}PASSED{Color.END}'
+            else:
+                string_to_print = f'{Color.RED}FAILED{Color.END}'
         print(f'{file.split(".")[0]}: {string_to_print}')
         result = is_identical and result
 
