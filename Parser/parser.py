@@ -48,6 +48,7 @@ class Parser:
 
     def get_rhs_from_table(self, top_of_stack):
         lexeme = self.last_token[1]
+        print(top_of_stack, lexeme)
         return self.table.get((top_of_stack, lexeme))
 
     def _update_stack(self, ):
@@ -65,11 +66,11 @@ class Parser:
             if last_stmt.name != self.last_token.token_type:
                 self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token.lexeme}'))
             elif self.stack:
-                self.last_token = self.scanner.get_next_token()
+                self.last_token = self.get_next_token()
 
     def parse(self):
         self.stack.append(self.root)
-        self.last_token = self.scanner.get_next_token()
+        self.last_token = self.get_next_token()
         while self.stack:
             self._update_stack()
 
@@ -85,11 +86,16 @@ class Parser:
         errors_table = ErrorsTable(self.errors)
         errors_table.export_syntax_errors()
 
+    def get_next_token(self):
+        token = self.scanner.get_next_token()
+        print(token)
+        return token
+
     def handle_panic(self, last_stmt):
         rhs = self.get_rhs_from_table(last_stmt)
         while not rhs:
             self.errors.append((self.scanner.get_current_line(), f'syntax error, illegal {self.last_token[1]}'))
-            self.last_token = self.scanner.get_next_token()
+            self.last_token = self.get_next_token()
             rhs = self.get_rhs_from_table(last_stmt)
 
         self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token[1]}'))
