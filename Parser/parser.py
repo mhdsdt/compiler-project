@@ -32,7 +32,7 @@ class Parser:
     def create_parse_table(self):
         for non_terminal in self.grammar.non_terminals:
             for terminal in self.grammar.terminals:
-                self.table[(non_terminal, terminal)] = None
+                self.table[(non_terminal.name, terminal.name)] = None
 
         for rule in self.grammar.product_rules:
             lhs = rule.lhs
@@ -40,17 +40,17 @@ class Parser:
 
             for terminal in first_set:
                 if terminal.name != 'EPSILON':
-                    self.table[(lhs, terminal)] = rule
+                    self.table[(lhs.name, terminal.name)] = rule.rhs
 
             if 'EPSILON' in [term.name for term in first_set]:
                 follow_set = lhs.follow
                 for terminal in follow_set:
-                    self.table[(lhs, terminal)] = rule
+                    self.table[(lhs.name, terminal.name)] = rule.rhs
 
     def get_rhs_from_table(self, top_of_stack):
         lexeme = self.last_token[1]
         print(top_of_stack, lexeme)
-        return self.table.get((top_of_stack, lexeme))
+        return self.table[(top_of_stack.name, lexeme)]
 
     def _update_stack(self, ):
         last_stmt = self.stack.pop()
@@ -59,7 +59,8 @@ class Parser:
 
         if isinstance(last_stmt, NonTerminal):
             rhs = self.get_rhs_from_table(last_stmt)
-            if not rhs or rhs[0] == 'SYNCH':
+            print('rhs', " ".join([str(term) for term in rhs]))
+            if not rhs or rhs[0].name == 'SYNCH':
                 self.handle_panic(last_stmt)
             else:
                 self.stack.append(Node(r, parent=last_stmt) for r in rhs)
