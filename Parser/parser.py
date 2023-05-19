@@ -91,10 +91,14 @@ class Parser:
     def export_parse_tree(self):
         print('--------- export_parse_tree')
         for node in PreOrderIter(self.root):
+            if node.name == 'EPSILON':
+                node.name = 'epslion'
+            elif type(node.name) is tuple:
+                node.name = f'({node.name[0]}, {node.name[1]})'
             print(node.name)
         with open(ROOT_DIR + 'parse_tree.txt', 'w', encoding='utf-8') as f:
             for pre, _, node in RenderTree(self.root):
-                f.write('%s%s\n' % (pre, node.name))
+                f.write(f'{pre}{node.name}\n')
 
     def export_syntax_errors(self):
         errors_table = ErrorsTable(self.errors)
