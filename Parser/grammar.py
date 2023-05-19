@@ -75,12 +75,8 @@ class Grammar:
     def import_product_rules(self):
         with open('Parser/grammar.txt', encoding='utf-8') as f:
             for line in f.readlines():
-                print('line:', line)
                 lhs_as_str, rhs_as_str = line.strip('\n').split(' -> ')
-                print('lhs_as_str:', lhs_as_str)
-                print('rhs_as_str:', rhs_as_str)
                 lhs = self.get_term_by_name(lhs_as_str)
-                print('lhs:', lhs)
                 for rule in rhs_as_str.split('|'):
                     terms = [self.get_term_by_name(term) for term in rule.split()]
                     self.add_product_rule(ProductRule(lhs, terms))
