@@ -1,8 +1,16 @@
-/* sample 7 */
+/* sample 8 */
 
-void main(int{
-	int prod;
+int func(a){
+    if a<2 {
+        return 2
+    }else{
+        return
+    }
+}
+
+void main  ( void )
+{
 	int i;
-	prod = 1;
-	i = 1;
+	i = func(2+4);
+	output(i;
 }

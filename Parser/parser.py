@@ -5,6 +5,10 @@ from utils.tables import ErrorsTable, ROOT_DIR
 from Parser.grammar import Terminal, NonTerminal
 
 
+class LastTokenException(Exception):
+    pass
+
+
 class Parser:
     def __init__(self, scanner, grammar):
         self.root = NonTerminal(name='Program')
@@ -72,7 +76,8 @@ class Parser:
             if lexeme == '$':
                 Terminal('$', parent=self.root)
             elif last_stmt.name != lexeme:
-                self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {lexeme}'))
+                last_stmt.parent = None
+                self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {last_stmt.name}'))
             elif self.stack:
                 last_stmt.name = self.last_token
                 self.last_token = self.get_next_token()
@@ -80,8 +85,13 @@ class Parser:
     def parse(self):
         self.stack.append(self.root)
         self.last_token = self.get_next_token()
-        while self.stack:
-            self._update_stack()
+        try:
+            while self.stack:
+                self._update_stack()
+        except LastTokenException:
+            for element in self.stack:
+                element.parent = None
+
         self.export_parse_tree()
         self.export_syntax_errors()
 
@@ -107,21 +117,29 @@ class Parser:
 
     def handle_panic(self, last_stmt):
         print('handle panic ---->', last_stmt)
+
         rhs = self.get_rhs_from_table(last_stmt)
         in_empty = False
         while not rhs:
+            if self.last_token[0] == TokenType.EOF.value:
+                if self.stack:
+                    self.errors.append((self.scanner.get_current_line(), '', 'syntax error, Unexpected EOF'))
+                raise LastTokenException()
             in_empty = True
-            self.errors.append((self.scanner.get_current_line(), '', f'syntax error, illegal {self.last_token[1]}'))
+            if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
+                lexeme = self.last_token[0]
+            else:
+                lexeme = self.last_token[1]
+            self.errors.append((self.scanner.get_current_line(), '', f'syntax error, illegal {lexeme}'))
             self.last_token = self.get_next_token()
             rhs = self.get_rhs_from_table(last_stmt)
-            if self.last_token[0] == TokenType.EOF.value:
-                break
 
         if in_empty:
             self.stack.append(last_stmt)
 
-        if rhs and rhs[0].name != 'SYNCH':
-            self.extend_stack(last_stmt, rhs)
+        if rhs and rhs[0].name == 'SYNCH':
+            last_stmt.parent = None
+            # self.extend_stack(last_stmt, rhs)
 
         self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {self.last_token[1]}'))
 
