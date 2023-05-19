@@ -48,7 +48,10 @@ class Parser:
                     self.table[(lhs.name, terminal.name)] = rule.rhs
 
     def get_rhs_from_table(self, top_of_stack):
-        lexeme = self.last_token[1]
+        if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
+            lexeme = self.last_token[0]
+        else:
+            lexeme = self.last_token[1]
         print(top_of_stack, lexeme)
         return self.table[(top_of_stack.name, lexeme)]
 
@@ -60,7 +63,7 @@ class Parser:
         if isinstance(last_stmt, NonTerminal):
             rhs = self.get_rhs_from_table(last_stmt)
             if rhs:
-                print('rhs', " ".join([str(term) for term in rhs]))
+                print('->', " ".join([str(term) for term in rhs]))
             if not rhs or rhs[0].name == 'SYNCH':
                 self.handle_panic(last_stmt)
             else:
@@ -81,6 +84,7 @@ class Parser:
         self.export_syntax_errors()
 
     def export_parse_tree(self):
+        print('--------- export_parse_tree')
         for node in PreOrderIter(self.root):
             print(node)
         with open(ROOT_DIR + 'parse_tree.txt', 'w') as f:
@@ -93,7 +97,7 @@ class Parser:
 
     def get_next_token(self):
         token = self.scanner.get_next_token()
-        print('token:', token)
+        print('------ token:', token)
         return token
 
     def handle_panic(self, last_stmt):
