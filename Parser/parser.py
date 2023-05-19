@@ -17,15 +17,15 @@ class Parser:
         self.create_parse_table()
 
     @staticmethod
-    def get_first_set(symbols):
+    def get_first_set(terms):
         first_set = set()
-        for symbol in symbols:
-            if isinstance(symbol, Terminal):
-                first_set.add(symbol)
+        for term in terms:
+            if isinstance(term, Terminal):
+                first_set.add(term)
                 break
-            elif isinstance(symbol, NonTerminal):
-                first_set |= set(symbol.first)
-                if Terminal('EPSILON') not in symbol.first:
+            elif isinstance(term, NonTerminal):
+                first_set |= set(term.first)
+                if 'EPSILON' not in [term.name for term in term.first]:
                     break
         return first_set
 
@@ -43,18 +43,15 @@ class Parser:
                     self.table[(lhs.name, terminal.name)] = rule.rhs
 
             if 'EPSILON' in [term.name for term in first_set]:
-                follow_set = lhs.follow
-                for terminal in follow_set:
+                for terminal in lhs.follow:
                     self.table[(lhs.name, terminal.name)] = rule.rhs
-
-
 
     def get_rhs_from_table(self, top_of_stack):
         if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
             lexeme = self.last_token[0]
         else:
             lexeme = self.last_token[1]
-        print(top_of_stack, lexeme)
+        print(top_of_stack)
         return self.table[(top_of_stack.name, lexeme)]
 
     def _update_stack(self, ):

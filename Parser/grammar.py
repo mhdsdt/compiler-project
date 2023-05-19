@@ -7,7 +7,6 @@ class Terminal(Node):
     def __init__(self, name, **kwargs):
         super().__init__(name, **kwargs)
         self.name = name
-        self.first = [name]
 
     def __str__(self):
         return self.name
