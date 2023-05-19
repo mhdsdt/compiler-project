@@ -92,7 +92,7 @@ class Parser:
         print('--------- export_parse_tree')
         for node in PreOrderIter(self.root):
             if node.name == 'EPSILON':
-                node.name = 'epslion'
+                node.name = 'epsilon'
             elif type(node.name) is tuple:
                 node.name = f'({node.name[0]}, {node.name[1]})'
             print(node.name)
