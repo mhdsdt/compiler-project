@@ -43,13 +43,10 @@ class Grammar:
     def get_term_by_name(self, name):
         for non_terminal in self.non_terminals:
             if non_terminal.name == name:
-                print(f'non_terminal {non_terminal.name} found!')
                 return non_terminal
         for terminal in self.terminals:
             if terminal.name == name:
-                print(f'terminal {terminal.name} found!')
                 return terminal
-        print(f'name {name} DID NOT FOUND!')
 
     def import_terminals(self):
         with open('Parser/data.json', encoding='utf-8') as f:
