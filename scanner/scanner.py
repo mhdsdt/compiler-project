@@ -41,13 +41,15 @@ class Scanner:
                     self.buffer.rollback(lexeme[-1])
                     lexeme = lexeme[:-1]
                 curr_state.set_lexeme(lexeme)
+                if eof:
+                    return TokenType.EOF.value, '$'
                 return curr_state.get_token(lexeme)
             elif isinstance(curr_state, ErrorNode):
                 self.handle_error(curr_state, tmp_curr_line)
                 curr_state, tmp_curr_line, lexeme = self.get_defaults()
 
             if eof:
-                return
+                return TokenType.EOF.value, '$'
 
     def handle_error(self, error_state, current_line):
         error = list(error_state.handle_error())

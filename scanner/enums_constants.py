@@ -10,6 +10,7 @@ class TokenType(Enum):
     Whitespace = 'WHITESPACE'
     KeywordId = 'KEYWORDID'
     Unknown = 'UNKNOWN'
+    EOF = 'EOF'
 
 
 class Error(Enum):

@@ -9,8 +9,6 @@ class Buffer:
 
     def __fill_buffer(self):
         self.content = self.input_file.read(self.buffer_size)
-        # if len(self.content) < self.buffer_size:
-        #     self.content += chr(26)
         self.buffer_pos = 0
 
     def get_next_char(self):

@@ -1,5 +1,6 @@
 from anytree import Node, RenderTree
 
+from scanner.enums_constants import TokenType
 from utils.tables import ErrorsTable, ROOT_DIR
 from Parser.grammar import Terminal, NonTerminal
 
@@ -88,7 +89,7 @@ class Parser:
 
     def get_next_token(self):
         token = self.scanner.get_next_token()
-        print(token)
+        print('token:', token)
         return token
 
     def handle_panic(self, last_stmt):
@@ -97,5 +98,7 @@ class Parser:
             self.errors.append((self.scanner.get_current_line(), f'syntax error, illegal {self.last_token[1]}'))
             self.last_token = self.get_next_token()
             rhs = self.get_rhs_from_table(last_stmt)
+            if self.last_token[0] == TokenType.EOF.value:
+                break
 
         self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token[1]}'))
