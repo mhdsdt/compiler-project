@@ -1,8 +1,11 @@
 import json
 
+from anytree import Node
 
-class Terminal:
-    def __init__(self, name):
+
+class Terminal(Node):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
         self.name = name
         self.first = [name]
 
@@ -10,8 +13,9 @@ class Terminal:
         return self.name
 
 
-class NonTerminal:
-    def __init__(self, name):
+class NonTerminal(Node):
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
         self.name = name
         self.first = []
         self.follow = []

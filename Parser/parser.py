@@ -1,4 +1,4 @@
-from anytree import Node, RenderTree
+from anytree import Node, RenderTree, PreOrderIter
 
 from scanner.enums_constants import TokenType
 from utils.tables import ErrorsTable, ROOT_DIR
@@ -59,14 +59,15 @@ class Parser:
 
         if isinstance(last_stmt, NonTerminal):
             rhs = self.get_rhs_from_table(last_stmt)
-            print('rhs', " ".join([str(term) for term in rhs]))
+            if rhs:
+                print('rhs', " ".join([str(term) for term in rhs]))
             if not rhs or rhs[0].name == 'SYNCH':
                 self.handle_panic(last_stmt)
             else:
-                self.stack.append(Node(r, parent=last_stmt) for r in rhs)
+                self.extend_stack(last_stmt, rhs)
         elif isinstance(last_stmt, Terminal):
-            if last_stmt.name != self.last_token.token_type:
-                self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token.lexeme}'))
+            if last_stmt.name != self.last_token[1]:
+                self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token[1]}'))
             elif self.stack:
                 self.last_token = self.get_next_token()
 
@@ -80,6 +81,8 @@ class Parser:
         self.export_syntax_errors()
 
     def export_parse_tree(self):
+        for node in PreOrderIter(self.root):
+            print(node)
         with open(ROOT_DIR + 'parse_tree.txt', 'w') as f:
             for pre, _, node in RenderTree(self.root):
                 f.write('%s%s\n' % (pre, node.name))
@@ -103,3 +106,12 @@ class Parser:
                 break
 
         self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token[1]}'))
+
+    def extend_stack(self, last_stmt, rhs):
+        for r in rhs[::-1]:
+            if isinstance(r, NonTerminal):
+                self.stack.append(NonTerminal(r.name, parent=last_stmt))
+            elif isinstance(r, Terminal):
+                self.stack.append(Terminal(r.name, parent=last_stmt))
+            else:
+                raise Exception(f'r is not either Terminal Or NonTerminal. {type(r)}')
