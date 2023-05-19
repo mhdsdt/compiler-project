@@ -1,6 +1,5 @@
 from anytree import Node, RenderTree
 
-from scanner.dfa_handler import DFANode
 from utils.tables import ErrorsTable, ROOT_DIR
 from Parser.grammar import Terminal, NonTerminal
 
@@ -30,9 +29,6 @@ class Parser:
         lexeme = self.last_token[1]
         return self.table.get(top_of_stack).get(lexeme)
 
-    # def add_error(self, top_of_stack, token):
-    #     self.errors.append((self.scanner.get_current_line(), 'syntax error, missing ]'))
-
     def _update_stack(self, ):
         last_stmt = self.stack.pop()
         while len(self.stack) and last_stmt.name == 'EPSILON':
@@ -55,6 +51,9 @@ class Parser:
         self.last_token = self.scanner.get_next_token()
         while self.stack:
             self._update_stack()
+
+        self.export_parse_tree()
+        self.export_syntax_errors()
 
     def export_parse_tree(self):
         with open(ROOT_DIR + 'parse_tree.txt', 'w') as f:

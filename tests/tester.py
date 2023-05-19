@@ -3,7 +3,7 @@ import subprocess
 import shutil
 import filecmp
 
-ROOT_DIR = '../'
+ROOT_DIR = '../../'
 OUTPUT_FILES = None
 TESTS_PATH = None
 
@@ -26,6 +26,7 @@ def is_output_correct(i):
     result = True
     for file in OUTPUT_FILES.keys():
         dst = f'{TESTS_PATH}/T{i:02}/{file}'
+        print(ROOT_DIR + file, dst)
         is_identical = filecmp.cmp(ROOT_DIR + file, dst)
         if is_identical:
             OUTPUT_FILES[file] += 1

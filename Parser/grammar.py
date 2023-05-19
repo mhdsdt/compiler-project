@@ -41,28 +41,31 @@ class Grammar:
 
     def get_term_by_name(self, name):
         for non_terminal in self.non_terminals:
-            if non_terminal.name == name:
+            if non_terminal.name == name.upper():
                 return non_terminal
         for terminal in self.terminals:
-            if terminal.name == name:
+            if terminal.name == name.upper():
                 return terminal
 
     def import_firsts(self):
-        with open('firsts.txt', encoding='utf-8') as f:
+        with open('Parser/firsts.txt', encoding='utf-8') as f:
             for line in f.readlines():
                 split_line = line.strip('\n').split()
-                non_terminal = self.get_term_by_name(split_line[0])
-                non_terminal.first = [self.get_term_by_name(term) for term in split_line[1:]]
+                try:
+                    non_terminal = self.get_term_by_name(split_line[0])
+                    non_terminal.first = [self.get_term_by_name(term) for term in split_line[1:]]
+                except Exception as e:
+                    print(split_line[0])
 
     def import_follows(self):
-        with open('follows.txt.txt', encoding='utf-8') as f:
+        with open('Parser/follows.txt', encoding='utf-8') as f:
             for line in f.readlines():
                 split_line = line.strip('\n').split()
                 non_terminal = self.get_term_by_name(split_line[0])
                 non_terminal.follow = [self.get_term_by_name(term) for term in split_line[1:]]
 
     def import_product_rules(self):
-        with open('grammar.txt', encoding='utf-8') as f:
+        with open('Parser/grammar.txt', encoding='utf-8') as f:
             for line in f.readlines():
                 lhs_as_str, rhs_as_str = line.strip('\n').split('->')
                 lhs = self.get_term_by_name(lhs_as_str)
@@ -101,7 +104,7 @@ def create_non_terminals():
 
 
 def create_grammar():
-    grammar = Grammar(create_non_terminals(), create_terminals())
+    grammar = Grammar(create_terminals(), create_non_terminals())
     grammar.import_firsts()
     grammar.import_follows()
     grammar.import_product_rules()

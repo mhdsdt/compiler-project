@@ -1,7 +1,7 @@
-from tests import tester
+from tests.tester import test
 
 OUTPUT_FILES = {'parse_tree.txt': 0, 'syntax_errors.txt': 0}
 
 
 if __name__ == '__main__':
-    tester.test(output_files=OUTPUT_FILES, tests_path='Parser/testcases')
+    test(output_files=OUTPUT_FILES, tests_path='testcases')
