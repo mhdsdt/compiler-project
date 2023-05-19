@@ -36,6 +36,9 @@ class Grammar:
         self.product_rules = []
         self.import_terminals()
         self.import_non_terminals()
+        self.import_firsts()
+        self.import_follows()
+        self.import_product_rules()
 
     def add_product_rule(self, rule):
         self.product_rules.append(rule)
@@ -80,11 +83,3 @@ class Grammar:
                 for rule in rhs_as_str.split('|'):
                     terms = [self.get_term_by_name(term) for term in rule.split()]
                     self.add_product_rule(ProductRule(lhs, terms))
-
-
-def create_grammar():
-    grammar = Grammar()
-    grammar.import_firsts()
-    grammar.import_follows()
-    grammar.import_product_rules()
-    return grammar
