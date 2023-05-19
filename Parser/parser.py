@@ -15,19 +15,40 @@ class Parser:
         self.last_token = None
         self.create_parse_table()
 
-    def create_parse_table(self):
-        for rule in self.grammar.product_rules:
-            self.table[rule.lhs.name] = dict()
-            self.table[rule.lhs.name][rule.lhs.first.name] = [p.name for p in rule.rhs]
+    @staticmethod
+    def get_first_set(symbols):
+        first_set = set()
+        for symbol in symbols:
+            if isinstance(symbol, Terminal):
+                first_set.add(symbol)
+                break
+            elif isinstance(symbol, NonTerminal):
+                first_set |= set(symbol.first)
+                if Terminal('EPSILON') not in symbol.first:
+                    break
+        return first_set
 
-        for nt in self.grammar.non_terminals:
-            for follow in nt.follow:
-                if not self.table.get(nt.name).get(follow):
-                    self.table[nt.name][follow.name] = ['SYNCH']
+    def create_parse_table(self):
+        for non_terminal in self.grammar.non_terminals:
+            for terminal in self.grammar.terminals:
+                self.table[(non_terminal, terminal)] = None
+
+        for rule in self.grammar.product_rules:
+            lhs = rule.lhs
+            first_set = self.get_first_set(rule.rhs)
+
+            for terminal in first_set:
+                if terminal.name != 'EPSILON':
+                    self.table[(lhs, terminal)] = rule
+
+            if 'EPSILON' in [term.name for term in first_set]:
+                follow_set = lhs.follow
+                for terminal in follow_set:
+                    self.table[(lhs, terminal)] = rule
 
     def get_rhs_from_table(self, top_of_stack):
         lexeme = self.last_token[1]
-        return self.table.get(top_of_stack).get(lexeme)
+        return self.table.get((top_of_stack, lexeme))
 
     def _update_stack(self, ):
         last_stmt = self.stack.pop()
@@ -67,8 +88,8 @@ class Parser:
     def handle_panic(self, last_stmt):
         rhs = self.get_rhs_from_table(last_stmt)
         while not rhs:
-            self.errors.append((self.scanner.get_current_line(), f'syntax error, illegal {self.last_token.lexeme}'))
+            self.errors.append((self.scanner.get_current_line(), f'syntax error, illegal {self.last_token[1]}'))
             self.last_token = self.scanner.get_next_token()
             rhs = self.get_rhs_from_table(last_stmt)
 
-        self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token.lexeme}'))
+        self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token[1]}'))

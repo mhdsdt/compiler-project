@@ -1,6 +1,5 @@
 from scanner.scanner import Scanner
 from Parser.parser import Parser
-
 from Parser.grammar import Grammar
 
 # Mahdi Saadatbakht     99105475
