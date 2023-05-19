@@ -47,6 +47,8 @@ class Parser:
                 for terminal in follow_set:
                     self.table[(lhs.name, terminal.name)] = rule.rhs
 
+
+
     def get_rhs_from_table(self, top_of_stack):
         if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
             lexeme = self.last_token[0]
@@ -65,13 +67,19 @@ class Parser:
             if rhs:
                 print('->', " ".join([str(term) for term in rhs]))
             if not rhs or rhs[0].name == 'SYNCH':
-                self.handle_panic(last_stmt)
+                pass
+                # self.handle_panic(last_stmt)
             else:
                 self.extend_stack(last_stmt, rhs)
         elif isinstance(last_stmt, Terminal):
-            if last_stmt.name != self.last_token[1]:
-                self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token[1]}'))
+            if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
+                lexeme = self.last_token[0]
+            else:
+                lexeme = self.last_token[1]
+            if last_stmt.name != lexeme:
+                self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {self.last_token[1]}'))
             elif self.stack:
+                last_stmt.name = self.last_token
                 self.last_token = self.get_next_token()
 
     def parse(self):
@@ -86,8 +94,8 @@ class Parser:
     def export_parse_tree(self):
         print('--------- export_parse_tree')
         for node in PreOrderIter(self.root):
-            print(node)
-        with open(ROOT_DIR + 'parse_tree.txt', 'w') as f:
+            print(node.name)
+        with open(ROOT_DIR + 'parse_tree.txt', 'w', encoding='utf-8') as f:
             for pre, _, node in RenderTree(self.root):
                 f.write('%s%s\n' % (pre, node.name))
 
@@ -101,21 +109,29 @@ class Parser:
         return token
 
     def handle_panic(self, last_stmt):
+        print('handle panic ---->', last_stmt)
         rhs = self.get_rhs_from_table(last_stmt)
         while not rhs:
-            self.errors.append((self.scanner.get_current_line(), f'syntax error, illegal {self.last_token[1]}'))
+            self.errors.append((self.scanner.get_current_line(), '', f'syntax error, illegal {self.last_token[1]}'))
             self.last_token = self.get_next_token()
             rhs = self.get_rhs_from_table(last_stmt)
             if self.last_token[0] == TokenType.EOF.value:
                 break
 
-        self.errors.append((self.scanner.get_current_line(), f'syntax error, missing {self.last_token[1]}'))
+        self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {self.last_token[1]}'))
 
     def extend_stack(self, last_stmt, rhs):
-        for r in rhs[::-1]:
+        temp_stack = []
+        for r in rhs:
             if isinstance(r, NonTerminal):
-                self.stack.append(NonTerminal(r.name, parent=last_stmt))
+                temp_stack.append(NonTerminal(r.name, parent=last_stmt))
             elif isinstance(r, Terminal):
-                self.stack.append(Terminal(r.name, parent=last_stmt))
+                temp_stack.append(Terminal(r.name, parent=last_stmt))
+
+        for r in temp_stack[::-1]:
+            if isinstance(r, NonTerminal):
+                self.stack.append(r)
+            elif isinstance(r, Terminal):
+                self.stack.append(r)
             else:
                 raise Exception(f'r is not either Terminal Or NonTerminal. {type(r)}')

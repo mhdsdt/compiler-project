@@ -30,7 +30,8 @@ class ProductRule:
         self.rhs = rhs
 
     def __str__(self):
-        return f'{str(self.lhs)} -> {" ".join([str(term) for term in self.rhs])}'
+        return str(self.lhs)
+        # return f'{str(self.lhs)} -> {" ".join([str(term) for term in self.rhs])}'
 
 
 class Grammar:

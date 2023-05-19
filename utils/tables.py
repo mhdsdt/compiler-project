@@ -44,8 +44,9 @@ class ErrorsTable:
                 errors_file.write(f'{line_num}.\t{errors_as_string} \n')
 
     def export_syntax_errors(self):
-        with open(ROOT_DIR + 'lexical_errors.txt', 'w') as f:
+        with open(ROOT_DIR + 'syntax_errors.txt', 'w') as f:
             if not self.errors:
                 f.write("There is no syntax error.\n")
-            for line_num, error in self.errors:
-                f.write(f"#{line_num} : syntax error, {error}\n")
+            for line_num, errors in self.errors.items():
+                for error in errors:
+                    f.write(f"#{line_num} : {error[1]} \n")
