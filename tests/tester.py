@@ -1,7 +1,6 @@
 import os
 import subprocess
 import shutil
-import filecmp
 
 ROOT_DIR = '../../'
 OUTPUT_FILES = None
@@ -17,6 +16,13 @@ class Color:
     END = '\033[0m'
 
 
+def compare_files(file1_path, file2_path):
+    with open(file1_path, 'r') as file1, open(file2_path, 'r') as file2:
+        content1 = file1.read()
+        content2 = file2.read()
+        return content1 == content2
+
+
 def get_number_of_tests():
     return len(next(os.walk(f'{TESTS_PATH}/'))[1])
 
@@ -30,7 +36,7 @@ def is_output_correct(i):
             is_identical = False
             string_to_print = f'{Color.RED}FAILED{Color.END}'
         else:
-            is_identical = filecmp.cmp(ROOT_DIR + file, dst)
+            is_identical = compare_files(ROOT_DIR + file, dst)
             if is_identical:
                 OUTPUT_FILES[file] += 1
                 string_to_print = f'{Color.GREEN}PASSED{Color.END}'
@@ -64,8 +70,6 @@ def test(output_files, tests_path, num_tests=10):
         else:
             string_to_print = f'{Color.RED}{Color.BOLD}FAILED!{Color.END}'
         print(f'******* T{i:02} {string_to_print} *******\n')
-        # os.remove(dst)
-        # remove_output_files()
 
     for file, num_passed in OUTPUT_FILES.items():
         print(f'{file.split(".")[0]}: {num_passed} / {num_tests}')
