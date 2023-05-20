@@ -46,7 +46,7 @@ class ErrorsTable:
     def export_syntax_errors(self):
         with open(ROOT_DIR + 'syntax_errors.txt', 'w') as f:
             if not self.errors:
-                f.write("There is no syntax error.\n")
+                f.write("There is no syntax error.")
             for line_num, errors in self.errors.items():
                 for error in errors:
                     f.write(f"#{line_num} : {error[1]} \n")
