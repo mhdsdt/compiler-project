@@ -50,6 +50,10 @@ class Parser:
                 for terminal in lhs.follow:
                     self.table[(lhs.name, terminal.name)] = rule.rhs
 
+            for terminal in lhs.follow:
+                if self.table[(lhs.name, terminal.name)] is None:
+                    self.table[(lhs.name, terminal.name)] = [Terminal('SYNCH')]
+
     def get_rhs_from_table(self, top_of_stack):
         if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
             lexeme = self.last_token[0]
