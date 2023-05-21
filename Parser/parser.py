@@ -132,11 +132,11 @@ class Parser:
             self.last_token = self.get_next_token()
             rhs = self.get_rhs_from_table(last_stmt)
 
-        if rhs and rhs[0].name != 'SYNCH':
+        if rhs and rhs[0].name == 'SYNCH':
+            self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {last_stmt.name}'))
+            self.remove_and_reformat_tree(last_stmt)
+        else:
             self.extend_stack(last_stmt, rhs)
-
-        self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {last_stmt.name}'))
-        self.remove_and_reformat_tree(last_stmt)
 
     def extend_stack(self, last_stmt, rhs):
         temp_stack = []
