@@ -55,10 +55,7 @@ class Parser:
                     self.table[(lhs.name, terminal.name)] = [Terminal('SYNCH')]
 
     def get_rhs_from_table(self, top_of_stack):
-        if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
-            lexeme = self.last_token[0]
-        else:
-            lexeme = self.last_token[1]
+        lexeme = self.get_token_name()
         return self.table[(top_of_stack.name, lexeme)]
 
     def _update_stack(self, ):
@@ -73,15 +70,12 @@ class Parser:
             else:
                 self.extend_stack(last_stmt, rhs)
         elif isinstance(last_stmt, Terminal):
-            if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
-                lexeme = self.last_token[0]
-            else:
-                lexeme = self.last_token[1]
+            lexeme = self.get_token_name()
             if lexeme == '$':
                 Terminal('$', parent=self.root)
             elif last_stmt.name != lexeme:
-                last_stmt.parent = None
                 self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {last_stmt.name}'))
+                self.remove_and_reformat_tree(last_stmt)
             elif self.stack:
                 last_stmt.name = self.last_token
                 self.last_token = self.get_next_token()
@@ -94,7 +88,7 @@ class Parser:
                 self._update_stack()
         except LastTokenException:
             for element in self.stack:
-                element.parent = None
+                self.remove_and_reformat_tree(element)
 
         self.export_parse_tree()
         self.export_syntax_errors()
@@ -119,33 +113,30 @@ class Parser:
         token = self.scanner.get_next_token()
         return token
 
-    def handle_panic(self, last_stmt):
-        print('handle panic ---->', last_stmt)
+    def get_token_name(self):
+        if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
+            name = self.last_token[0]
+        else:
+            name = self.last_token[1]
+        return name
 
+    def handle_panic(self, last_stmt):
         rhs = self.get_rhs_from_table(last_stmt)
-        in_empty = False
         while not rhs:
             if self.last_token[0] == TokenType.EOF.value:
                 if self.stack:
                     self.errors.append((self.scanner.get_current_line(), '', 'syntax error, Unexpected EOF'))
+                self.remove_and_reformat_tree(last_stmt)
                 raise LastTokenException()
-            in_empty = True
-            if self.last_token[0] in [TokenType.Id.value, TokenType.Num.value]:
-                lexeme = self.last_token[0]
-            else:
-                lexeme = self.last_token[1]
-            self.errors.append((self.scanner.get_current_line(), '', f'syntax error, illegal {lexeme}'))
+            self.errors.append((self.scanner.get_current_line(), '', f'syntax error, illegal {self.get_token_name()}'))
             self.last_token = self.get_next_token()
             rhs = self.get_rhs_from_table(last_stmt)
 
-        if in_empty:
-            self.stack.append(last_stmt)
+        if rhs and rhs[0].name != 'SYNCH':
+            self.extend_stack(last_stmt, rhs)
 
-        if rhs and rhs[0].name == 'SYNCH':
-            last_stmt.parent = None
-            # self.extend_stack(last_stmt, rhs)
-
-        self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {self.last_token[1]}'))
+        self.errors.append((self.scanner.get_current_line(), '', f'syntax error, missing {last_stmt.name}'))
+        self.remove_and_reformat_tree(last_stmt)
 
     def extend_stack(self, last_stmt, rhs):
         temp_stack = []
@@ -161,4 +152,10 @@ class Parser:
             elif isinstance(r, Terminal):
                 self.stack.append(r)
             else:
-                raise Exception(f'r is not either Terminal Or NonTerminal. {type(r)}')
+                raise Exception(f'r is not neither Terminal Or NonTerminal. {type(r)}')
+
+    def remove_and_reformat_tree(self, last_stmt):
+        if last_stmt.parent:
+            children = list(last_stmt.parent.children)
+            children.remove(last_stmt)
+            last_stmt.parent.children = tuple(children)

@@ -49,4 +49,4 @@ class ErrorsTable:
                 f.write("There is no syntax error.")
             for line_num, errors in self.errors.items():
                 for error in errors:
-                    f.write(f"#{line_num} : {error[1]} \n")
+                    f.write(f"#{line_num} : {error[1]}\n")
