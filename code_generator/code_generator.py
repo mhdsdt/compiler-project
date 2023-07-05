@@ -1,430 +1,327 @@
-import sys
-
-from collections import namedtuple
-
-MidLangDefaults = namedtuple('MidLangDefaults', 'WORD_SIZE DATA_ADDRESS TEMP_ADDRESS STACK_ADDRESS')
-MID_LANG = MidLangDefaults(4, 500, 900, 1000)
+symbol_table = {'KEYWORD': ['if', 'else', 'void', 'int', 'repeat', 'break', 'until', 'return'],
+                'ID': []}
 
 
-class Assembler:
-    def __init__(self):
-        self.arg_dec = False
-        self.set_exec = False
-        self.arg_pointer = []
-        self.data_pointer = 0
-        self.temp_pointer = 0
-        self.last_id = None
-        self.temp_address = 0
-        self.data_address = 0
-        self.stack_address = 0
-        self.program_block = []
-
-
-class RegisterFile:
-    def __init__(self, sp_address, fp_address, ra_address, rv_address):
-        self.sp = sp_address
-        self.fp = fp_address
-        self.ra = ra_address
-        self.rv = rv_address
-
-
-class Layer:
-    def __init__(self, assembler):
-        self.assembler = assembler
-        self.temp_stack = []
-        self.data_stack = []
-        self.jail = []
-
-    def new_scope(self):
-        self.temp_stack.append(self.assembler.temp_address)
-        self.data_stack.append(self.assembler.data_address)
-        self.jail.append("|")
-
-    def del_scope(self):
-        self.assembler.data_address = self.data_stack.pop()
-        self.assembler.temp_address = self.temp_stack.pop()
-
-        while self.jail[-1] != "|":  # scope delimiter
-            self.prison_break()
-        self.jail.pop()
-
-    def prison_break(self):
-        break_address = len(self.assembler.program_block)
-        prisoner = self.jail.pop()
-        self.assembler.program_block[prisoner] = f"(JP, {break_address}, , )"
-
-    def prison(self):
-        self.jail.append(len(self.assembler.program_block))
-        self.assembler.program_block.append("(help step-programmer im stuck!)")
-
-
-class ScopeManager:
-    def __init__(self, assembler, stack):
-        self.should_delete_scope = False
-        self.stack = stack
-        self.layers = {"t": Layer(assembler), "f": Layer(assembler), "c": Layer(assembler), "s": Layer(assembler)}
-        self.scmod = []
-
-    def push_scmod(self, mod):
-        self.scmod.append(mod)
-        if self.should_delete_scope:
-            self.__del_scope()
-
-    def prison(self):
-        self.layers[self.scmod.pop()].prison()
-
-    def prison_break(self):
-        self.layers[self.scmod.pop()].prison_break()
-
-    def new_scope(self):
-        scmod = self.scmod.pop()
-        self.layers[scmod].new_scope()
-        if scmod == "f":
-            self.stack.new_scope()
-
-    def del_scope(self):
-        self.should_delete_scope = True
-
-    def __del_scope(self):
-        self.should_delete_scope = False
-        scmod = self.scmod.pop()
-        self.layers[scmod].del_scope()
-        if scmod == "f":
-            self.stack.del_scope()
-
-
-class StackManager:
-    def __init__(self, program_block, register_file, MLD):
-        self.MLD = MLD
-        self.program_block = program_block
-        self.rf = register_file
-
-    def push(self, value):
-        self.program_block.append(f"(ASSIGN, {value}, @{self.rf.sp}, )")
-        self.program_block.append(f"(ADD, {self.rf.sp}, #{self.MLD.WORD_SIZE}, {self.rf.sp})")
-
-    def pop(self, holder):
-        self.program_block.append(f"(SUB, {self.rf.sp}, #{self.MLD.WORD_SIZE}, {self.rf.sp})")
-        self.program_block.append(f"(ASSIGN, @{self.rf.sp}, {holder}, )")
-
-    def new_scope(self):
-        self.program_block.append("")
-        self.push(self.rf.fp)
-        self.program_block.append(f"(ASSIGN, {self.rf.sp}, {self.rf.fp}, )")
-
-    def del_scope(self):
-        self.program_block.append(f"(ASSIGN, {self.rf.fp}, {self.rf.sp}, )")
-        self.pop(self.rf.fp)
-        self.program_block.append("")
-
-    def reserve(self, chunk=1):
-        self.program_block.append(f"(ADD, #{self.MLD.WORD_SIZE * chunk}, {self.rf.sp}, {self.rf.sp})")
-
-    def debug(self):
-        self.program_block.append(f"(PRINT, 500, , )")
-        self.program_block.append(f"(PRINT, 504, , )")
-
-    def store_registers(self):
-        self.push(self.rf.sp)
-        self.push(self.rf.fp)
-        self.push(self.rf.ra)
-
-    def load_registers(self):
-        self.pop(self.rf.ra)
-        self.pop(self.rf.fp)
-        self.pop(self.rf.sp)
+def search_in_symbol_table(item, scope_num=0):
+    for i in symbol_table['ID'][::-1]:
+        if item == i[0] and i[3] <= scope_num:
+            return True
+    return False
 
 
 class CodeGen:
+    def __init__(self):
+        self.SS = list()
+        self.PB = dict()
+        self.break_stack = list()
+        self.current_scope = 0
+        self.return_stack = list()
+        self.index = 0
+        self.temp_address = 500
+        self.semantic_errors = []
+        self.operations_dict = {'+': 'ADD', '-': 'SUB', '<': 'LT', '==': 'EQ'}
+        self.id_type = 'void'
+        self.isLoop = []
+        self.isMult = False
 
-    def __init__(self, mid_lang_defaults=MID_LANG):
-        self.semantic_stack = []
-        self.jail = []
+    def find_address(item):
+        if item == 'output':
+            return item
+        for i in symbol_table['ID'][::-1]:
+            if item == i[0]:
+                return i[2]
 
-        self.MLD = mid_lang_defaults
-        self.assembler = Assembler()
-        self.assembler.data_address = self.MLD.DATA_ADDRESS
-        self.assembler.stack_address = self.MLD.STACK_ADDRESS
-        self.assembler.temp_address = self.MLD.TEMP_ADDRESS
+    def call(self, name, lookahead):
+        self.__getattribute__(name[1:])(lookahead)
 
-        self.rf = RegisterFile(self.get_data_var(), self.get_data_var(), self.get_data_var(), self.get_data_var())
-        self.stack = StackManager(self.assembler.program_block, self.rf, self.MLD)
-        self.scope = ScopeManager(self.assembler, self.stack)
+    def insert_code(self, a, b, c='', d=''):
+        self.PB[self.index] = f'({a}, {b}, {c}, {d})'
+        self.index += 1
 
-        self.apply_template()
+    def get_temp(self, count=1):
+        address = str(self.temp_address)
+        for _ in range(count):
+            self.insert_code('ASSIGN', '#0', str(self.temp_address))
+            self.temp_address += 4
+        return address
 
-        self.routines = {"#pnum": self.pnum,
-                         "#pid": self.pid,
-                         "#parr": self.parr,
-                         "#pzero": self.pzero,
-                         "#prv": self.prv,
-                         "#op_push": self.op_push,
-                         "#pop": self.pop,
+    def define_variable(self, lookahead):
 
-                         "#declare": self.declare,
-                         "#declare_id": self.declare_id,
-                         "#declare_arr": self.declare_arr,
-                         "#declare_func": self.declare_func,
+        var_id = self.SS.pop()
 
-                         "#arg_init": self.arg_init,
-                         "#arg_finish": self.arg_finish,
-                         "#arg_pass": self.arg_pass,
+        self.void_check(var_id)
+        address = self.get_temp()
+        symbol_table['ID'].append((var_id, 'int', address, self.current_scope))
 
-                         "#assign": self.assign,
-                         "#op_exec": self.op_exec,
-                         "#decide": self.decide,
-                         "#case": self.case,
+    def define_array(self, lookahead):
+        array_size, array_id = int(self.SS.pop()[1:]), self.SS.pop()
 
-                         "#hold": self.hold,
-                         "#label": self.label,
+        self.void_check(array_id)
+        address = self.get_temp()
+        array_space = self.get_temp(array_size)
+        self.insert_code('ASSIGN', f'#{array_space}', address)
+        symbol_table['ID'].append((array_id, 'int*', address, self.current_scope))
 
-                         "#prison_break": self.prison_break,
-                         "#prison": self.prison,
-                         "#jump_while": self.jump_while,
+    def get_id_type(self, lookahead):
+        self.id_type = lookahead
 
-                         "#output": self.output,
-                         "#call": self.func_call,
-                         "#return": self.func_return,
+    def push_id(self, lookahead):
+        self.SS.append(lookahead[2])
 
-                         "#scmod_f": self.scmod_f,
-                         "#scmod_c": self.scmod_c,
-                         "#scmod_s": self.scmod_s,
-                         "#scmod_t": self.scmod_t,
+    def get_id(self, lookahead):
+        self.scope_check(lookahead)
+        self.SS.append(CodeGen.find_address(lookahead[2]))
 
-                         "#sc_start": self.scope_start,
-                         "#sc_stop": self.scope_stop,
+    def push_num(self, lookahead):
+        self.SS.append(f'#{lookahead[2]}')
 
-                         "#set_exec": self.set_exec,
-                         }
+    def push_operator(self, lookahead):
+        self.SS.append(lookahead[2])
 
-    def call(self, routine, token=None):
-        try:
-            self.routines[routine](token)
-            # uncomment the line below for debugging , gives you a step by step view!
-            # self.export("output.txt")
-        except:
-            sys.stderr.write(f"error during generating code for token {token.lexeme} and routine {routine}\n")
+    def make_op(self, lookahead):
+        operand_2 = self.SS.pop()
+        operator = self.SS.pop()
+        operand_1 = self.SS.pop()
+        self.type_mismatch(lookahead, operand_1, operand_2)
+        address = self.get_temp()
+        self.insert_code(self.operations_dict[operator], operand_1, operand_2, address)
+        self.SS.append(address)
 
-    def pid(self, token):
-        self.semantic_stack.append(self.find_var(token.lexeme).address)
+    def assign_operation(self, lookahead):
+        self.insert_code('ASSIGN', self.SS[-1], self.SS[-2])
+        self.SS.pop()
 
-    def pnum(self, token):
-        self.semantic_stack.append(f"#{token.lexeme}")
+    def multiply(self, lookahead):
+        res = self.get_temp()
+        self.isMult = True
+        self.type_mismatch(lookahead, self.SS[-2], self.SS[-1])
+        self.isMult = False
+        self.insert_code('MULT', self.SS[-1], self.SS[-2], res)
+        self.SS.pop()
+        self.SS.pop()
+        self.SS.append(res)
 
-    def pzero(self, token=None):
-        self.semantic_stack.append(f"#0")
+    def define_array_argument(self, lookahead):
 
-    def prv(self, token=None):
-        self.semantic_stack.append(self.rf.rv)
+        temp = symbol_table['ID'][-1]
+        del symbol_table['ID'][-1]
 
-    def parr(self, token=None):
-        offset = self.semantic_stack.pop()
-        temp = self.get_temp_var()
-        self.assembler.program_block.append(f"(MULT, #{self.MLD.WORD_SIZE}, {offset}, {temp})")
-        self.assembler.program_block.append(f"(ADD, {self.semantic_stack.pop()}, {temp}, {temp})")
-        self.semantic_stack.append(f"@{temp}")
+        symbol_table['ID'].append((temp[0], 'int*', temp[2], temp[3]))
 
-    def pop(self, token=None):
-        self.semantic_stack.pop()
+    def array_index(self, lookahead):
+        idx, array_address = self.SS.pop(), self.SS.pop()
+        temp, result = self.get_temp(), self.get_temp()
+        self.insert_code('MULT', '#4', idx, temp)
+        self.insert_code('ASSIGN', f'{array_address}', result)
+        self.insert_code('ADD', result, temp, result)
+        self.SS.append(f'@{result}')
 
-    def declare_arr(self, token=None):
-        self.assembler.program_block.append(f"(ASSIGN, {self.rf.sp}, {self.semantic_stack[-2]}, )")
-        self.stack.reserve(int(self.semantic_stack.pop()[1:]))
+    def implicit_output(self, lookahead):
+        if self.SS[-2] == 'output':
+            self.insert_code('PRINT', self.SS.pop())
 
-    def declare_func(self, token=None):
-        self.assembler.data_pointer = self.assembler.data_address
-        self.assembler.temp_pointer = self.assembler.temp_address
+    def save(self, lookahead):
+        self.SS.append(self.index)
+        self.index += 1
 
-        # only when zero init is activated
-        self.assembler.program_block[-1] = ""
+    def label(self, lookahead):
+        self.SS.append(self.index)
 
-        id_record = self.find_var(self.assembler.last_id.lexeme)
-        id_record.address = len(self.assembler.program_block)
+    def jpf_save(self, lookahead):
+        dest = self.SS.pop()
+        src = self.SS.pop()
+        self.PB[dest] = f'(JPF, {src}, {self.index + 1}, )'
+        self.SS.append(self.index)
+        self.index += 1
 
-    def declare_id(self, token):
-        id_record = self.find_var(token.lexeme)
-        id_record.address = self.get_data_var()
+    def jump(self, lookahead):
+        dest = int(self.SS.pop())
+        self.PB[dest] = f'(JP, {self.index}, , )'
 
-        self.assembler.last_id = token
+    def repeat(self, lookahead):
+        self.PB[int(self.SS[-1])] = f'(JPF, {self.SS[-2]},{self.SS[-3]}, )'
+        self.PB[self.index] = f'(JP,  {self.index + 1}, , )'
+        self.index += 1
+        self.SS.pop(), self.SS.pop(), self.SS.pop()
 
-        if self.assembler.arg_dec:
-            self.arg_assign(id_record.address)
+    def start_loop(self, lookahead):
+        self.isLoop.append(1)
+        self.break_stack.append('b')
+
+    def end_loop(self, lookahead):
+        latest_block = len(self.break_stack) - self.break_stack[::-1].index('b') - 1
+        for item in self.break_stack[latest_block + 1:]:
+            self.PB[item] = f'(JP, {self.index}, , )'
+        self.break_stack = self.break_stack[:latest_block]
+        self.isLoop.pop()
+
+    def break_loop(self, lookahead):
+        self.break_check(lookahead)
+        self.break_stack.append(self.index)
+        self.index += 1
+
+    def clean_up(self, lookahead):
+        self.SS.pop()
+
+    def end_function(self, lookahead):
+        self.SS.pop(), self.SS.pop(), self.SS.pop()
+        for item in symbol_table['ID'][::-1]:
+            if item[1] == 'function':
+                if item[0] == 'main':
+                    self.PB[self.SS.pop()] = f'(ASSIGN, #0, {self.get_temp()}, )'
+                    return
+                break
+        self.PB[self.SS.pop()] = f'(JP, {self.index}, , )'
+
+    def call_function(self, lookahead):
+        if self.SS[-1] != 'output':
+            args, attributes = [], []
+            for i in self.SS[::-1]:
+                if isinstance(i, list):
+                    attributes = i
+                    break
+                args = [i] + args
+            self.parameter_num_matching(lookahead, args, attributes)
+            for var, arg in zip(attributes[1], args):
+                self.parameter_type_matching(lookahead, var, arg, attributes[1].index(var) + 1)
+                self.insert_code('ASSIGN', arg, var[2])
+                self.SS.pop()
+            for i in range(len(args) - len(attributes[1])):
+                self.SS.pop()
+            self.SS.pop()
+            self.insert_code('ASSIGN', f'#{self.index + 2}', attributes[2])
+            self.insert_code('JP', attributes[-1])
+            result = self.get_temp()
+            self.insert_code('ASSIGN', attributes[0], result)
+            self.SS.append(result)
+
+    def start_params(self, lookahead):
+        func_name = self.SS.pop()
+        self.SS.append(self.index)
+        self.index += 1
+        self.SS.append(func_name)
+        symbol_table['ID'].append('s')
+
+    def push_index(self, lookahead):
+        self.SS.append(f'#{self.index}')
+
+    def start_func(self, lookahead):
+        return_address = self.get_temp()
+        current_index = self.index
+        return_value = self.get_temp()
+        self.SS.append(return_value)
+        self.SS.append(return_address)
+        func_name = self.SS[-3]
+        print(return_value, return_address)
+        args_start_idx = symbol_table['ID'].index('s')
+        func_args = symbol_table['ID'][args_start_idx + 1:]
+        symbol_table['ID'].pop(args_start_idx)
+        symbol_table['ID'].append(
+            (func_name, 'function', [return_value, func_args, return_address, current_index], self.current_scope))
+
+    def new_return(self, lookahead):
+        self.return_stack.append('b')
+
+    def save_return(self, lookahead):
+        self.return_stack.append((self.index, self.SS[-1]))
+        self.SS.pop()
+        self.index += 2
+
+    def return_anyway(self, lookahead):
+        if self.SS[-3] != 'main':
+            return_address = self.SS[-1]
+            self.insert_code('JP', f'@{return_address}')
+
+    def end_return(self, lookahead):
+        latest_func = len(self.return_stack) - self.return_stack[::-1].index('b') - 1
+        return_value = self.SS[-2]
+        return_address = self.SS[-1]
+        for item in self.return_stack[latest_func + 1:]:
+            self.PB[item[0]] = f'(ASSIGN, {item[1]}, {return_value}, )'
+            self.PB[item[0] + 1] = f'(JP, @{return_address}, , )'
+
+        self.return_stack = self.return_stack[:latest_func]
+
+    def scope_check(self, lookahead):
+        if search_in_symbol_table(lookahead[2], self.current_scope) or lookahead[2] == 'output':
+            return
+        self.semantic_errors.append(f'#{lookahead[0]} : Semantic Error! \'{lookahead[2]}\' is not defined.')
+
+    def void_check(self, var_id):
+        if self.id_type[2] == 'void':
+            self.semantic_errors.append(f'#{self.id_type[0]} : Semantic Error! Illegal type of void for \'{var_id}\'.')
+
+    def break_check(self, lookahead):
+        if len(self.isLoop) > 0:
+            return
+        self.semantic_errors.append(
+            f'#{lookahead[0]} : Semantic Error! No \'repeat ... until\' found for \'break\'.')
+
+    def type_mismatch(self, lookahead, operand_1, operand_2):
+        if operand_2 is None or operand_1 is None:
+            return
+        operand_2_type = 'int'
+        operand_1_type = 'int'
+        if not operand_1.startswith('#'):
+            for s in symbol_table['ID']:
+                if s[2] == operand_1:
+                    operand_1_type = s[1]
+                    break
+        if not operand_2.startswith('#'):
+            for s in symbol_table['ID']:
+                if s[2] == operand_2:
+                    operand_2_type = s[1]
+                    break
+
+        if operand_2_type != operand_1_type:
+            operand_1_type = 'array' if operand_1_type == 'int*' else operand_1_type
+            operand_2_type = 'array' if operand_2_type == 'int*' else operand_2_type
+            if self.isMult:
+                self.semantic_errors.append(
+                    f'#{lookahead[0]} : Semantic Error! Type mismatch in operands, Got array instead of int.')
+            else:
+                self.semantic_errors.append(
+                    f'#{lookahead[0]} : Semantic Error! Type mismatch in operands, Got {operand_2_type} instead of {operand_1_type}.')
+
+    def parameter_num_matching(self, lookahead, args, attributes):
+        func_name = ''
+        for i in symbol_table['ID']:
+            if i[2] == attributes:
+                func_name = i[0]
+        func_args = []
+        for i in attributes:
+            if isinstance(i, list):
+                func_args = i
+        if len(func_args) != len(args):
+            self.semantic_errors.append(
+                f'#{lookahead[0]} : Semantic Error! Mismatch in numbers of arguments of \'{func_name}\'.')
+
+    def parameter_type_matching(self, lookahead, var, arg, num):
+        if arg.startswith('#'):
+            if var[1] != 'int':
+                var_type = 'array' if var[1] == 'int*' else var[1]
+                self.semantic_errors.append(
+                    f'#{lookahead[0]} : Semantic Error! Mismatch in type of argument {num} of \'{self.get_func_name(var)}\'. Expected \'{var_type}\' but got \'int\' instead.')
         else:
-            self.assembler.program_block.append(f"(ASSIGN, #0, {id_record.address}, )")
-            pass
+            for rec in symbol_table['ID']:
+                if rec[2] == arg and rec[1] != var[1]:
+                    type = 'array' if rec[1] == 'int*' else rec[1]
+                    var_type = 'array' if var[1] == 'int*' else var[1]
+                    self.semantic_errors.append(
+                        f'#{lookahead[0]} : Semantic Error! Mismatch in type of argument {num} of \'{self.get_func_name(var)}\'. Expected \'{var_type}\' but got \'{type}\' instead.')
 
-    # @staticmethod
-    # def declare(Token=None):
-    #     tables.get_symbol_table().set_declaration(True)
+    def get_func_name(self, var):
+        for rec in symbol_table['ID']:
+            if rec[1] == 'function':
+                for arg in rec[2][1]:
+                    if arg[2] == var[2]:
+                        return rec[0]
 
-    def assign(self, token=None):
-        self.assembler.program_block.append(f"(ASSIGN, {self.semantic_stack.pop()}, {self.semantic_stack[-1]}, )")
+    def push_scope(self, lookahead):
+        self.current_scope += 1
 
-    def op_exec(self, token=None):
-        second = self.semantic_stack.pop()
-        operand = self.semantic_stack.pop()
-        first = self.semantic_stack.pop()
-        result = self.get_temp_var()
-        self.assembler.program_block.append(f"({operand}, {first}, {second}, {result})")
-        self.semantic_stack.append(result)
-
-    operands = {'+': 'ADD', '-': 'SUB', '*': 'MULT', '<': 'LT', '==': 'EQ'}
-
-    def op_push(self, token):
-        self.semantic_stack.append(self.operands[token.lexeme])
-
-    def hold(self, token=None):
-        self.label()
-        self.assembler.program_block.append("(new you see me!)")
-
-    def label(self, token=None):
-        self.semantic_stack.append(len(self.assembler.program_block))
-
-    def decide(self, token=None):
-        address = self.semantic_stack.pop()
-        self.assembler.program_block[
-            address] = f"(JPF, {self.semantic_stack.pop()}, {len(self.assembler.program_block)}, )"
-
-    def case(self, token=None):
-        result = self.get_temp_var()
-        self.assembler.program_block.append(f"(EQ, {self.semantic_stack.pop()}, {self.semantic_stack[-1]}, {result})")
-        self.semantic_stack.append(result)
-
-    def jump_while(self, token=None):
-        head1 = self.semantic_stack.pop()
-        head2 = self.semantic_stack.pop()
-        self.assembler.program_block.append(f"(JP, {self.semantic_stack.pop()}, , )")
-        self.semantic_stack.append(head2)
-        self.semantic_stack.append(head1)
-
-    def output(self, token=None):
-        self.assembler.program_block.append(f"(PRINT, {self.semantic_stack.pop()}, , )")
-
-    def get_temp_var(self):
-        self.assembler.temp_address += self.MLD.WORD_SIZE
-        return self.assembler.temp_address - self.MLD.WORD_SIZE
-
-    def get_data_var(self, chunk_size=1):
-        self.assembler.data_address += self.MLD.WORD_SIZE * chunk_size
-        return self.assembler.data_address - self.MLD.WORD_SIZE * chunk_size
-
-    def store(self):
-        # storing data
-        for data in range(self.assembler.data_pointer, self.assembler.data_address, self.MLD.WORD_SIZE):
-            self.stack.push(data)
-        # storing temp
-        for temp in range(self.assembler.temp_pointer, self.assembler.temp_address, self.MLD.WORD_SIZE):
-            self.stack.push(temp)
-        # storing registers
-        self.stack.store_registers()
-
-    def restore(self):
-        # loading registers
-        self.stack.load_registers()
-        # loading temps
-        for temp in range(self.assembler.temp_address, self.assembler.temp_pointer, -self.MLD.WORD_SIZE):
-            self.stack.pop(temp - self.MLD.WORD_SIZE)
-        # loading data
-        for data in range(self.assembler.data_address, self.assembler.data_pointer, -self.MLD.WORD_SIZE):
-            self.stack.pop(data - self.MLD.WORD_SIZE)
-
-    def collect(self):
-        # collect
-        result = self.get_temp_var()
-        self.assembler.program_block.append(f"(ASSIGN, {self.rf.rv}, {result}, )")
-        self.semantic_stack.append(result)
-
-    def push_args(self):
-        # arg pass
-        for arg in range(self.assembler.arg_pointer.pop(), len(self.semantic_stack)):
-            self.stack.push(self.semantic_stack.pop())
-
-    def func_call(self, token=None):
-        self.store()
-        self.push_args()
-        # setting registers
-        self.assembler.program_block.append(f"(ASSIGN, #{len(self.assembler.program_block) + 2}, {self.rf.ra}, )")
-        # call!
-        self.assembler.program_block.append(f"(JP, {self.semantic_stack.pop()}, , )")
-        self.restore()
-        self.collect()
-
-    def func_return(self, token=None):
-        self.assembler.program_block.append(f"(JP, @{self.rf.ra}, , )")
-
-    # argument management
-    def arg_init(self, token=None):
-        self.assembler.arg_dec = True
-
-    def arg_finish(self, token=None):
-        self.assembler.arg_dec = False
-
-    def arg_assign(self, address):
-        self.stack.pop(address)
-
-    def arg_pass(self, token=None):
-        self.assembler.arg_pointer.append(len(self.semantic_stack))
-
-    # scope
-    def scmod_f(self, token=None):
-        self.scope.push_scmod("f")  # function
-
-    def scmod_c(self, token=None):
-        self.scope.push_scmod("c")  # container
-
-    def scmod_s(self, token=None):
-        self.scope.push_scmod("s")  # simple
-
-    def scmod_t(self, token=None):
-        self.scope.push_scmod("t")  # temporary
-
-    # def scope_start(self, token=None):
-    #     tables.get_symbol_table().new_scope()
-    #     self.scope.new_scope()
-
-    # def scope_stop(self, token=None):
-    #     tables.get_symbol_table().remove_scope()
-    #     self.scope.del_scope()
-
-    def prison(self, token=None):
-        self.scope.prison()
-
-    def prison_break(self, token=None):
-        self.scope.prison_break()
-
-    # @staticmethod
-    # def find_var(id):
-    #     return tables.get_symbol_table().fetch(id)
-
-    def export(self, path):
-        with open(path, "w") as f:
-            for i, l in enumerate(self.assembler.program_block):
-                f.write(f"{i}\t{l}\n")
-
-    def apply_template(self):
-        self.assembler.program_block.append(f"(ASSIGN, #{self.MLD.STACK_ADDRESS}, {self.rf.sp}, )")
-        self.assembler.program_block.append(f"(ASSIGN, #{self.MLD.STACK_ADDRESS}, {self.rf.fp}, )")
-
-        self.assembler.program_block.append(f"(ASSIGN, #9999, {self.rf.ra}, )")
-        self.assembler.program_block.append(f"(ASSIGN, #9999, {self.rf.rv}, )")
-
-        self.assembler.program_block.append(f"(JP, 9, , )")
-        self.stack.pop(self.rf.rv)
-        self.assembler.program_block.append(f"(PRINT, {self.rf.rv}, , )")
-        self.assembler.program_block.append(f"(JP, @{self.rf.ra}, , )")
-        self.get_data_var()
-
-    def set_exec(self, token=None):
-        if not self.assembler.set_exec:
-            self.assembler.set_exec = True
-            func = self.semantic_stack.pop()
-            self.assembler.program_block.pop()
-            self.hold()
-            self.semantic_stack.append(func)
-
-    def execute_from(self, func_name):
-        try:
-            id_record = self.find_var(func_name)
-            self.assembler.program_block[self.semantic_stack.pop()] = f"(JP, {id_record.address}, , )"
-        except:
-            sys.stderr.write(f"couldn't set the executable path")
+    def pop_scope(self, lookahead):
+        for record in symbol_table['ID'][::-1]:
+            if record[3] == self.current_scope:
+                del symbol_table['ID'][-1]
+        self.current_scope -= 1

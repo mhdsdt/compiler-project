@@ -1,8 +1,9 @@
 from anytree import Node, RenderTree, PreOrderIter
 
+from code_generator.code_generator import CodeGen
 from scanner.enums_constants import TokenType
 from utils.tables import ErrorsTable, ROOT_DIR
-from Parser.grammar import Terminal, NonTerminal
+from Parser.grammar import Terminal, NonTerminal, Action
 
 
 class LastTokenException(Exception):
@@ -19,6 +20,7 @@ class Parser:
         self.table = dict()
         self.last_token = None
         self.create_parse_table()
+        self.code_gen = CodeGen()
 
     @staticmethod
     def get_first_set(terms):
@@ -62,8 +64,9 @@ class Parser:
         last_stmt = self.stack.pop()
         while len(self.stack) and last_stmt.name == 'EPSILON':
             last_stmt = self.stack.pop()
-
-        if isinstance(last_stmt, NonTerminal):
+        if isinstance(last_stmt, Action):
+            self.code_gen.call(last_stmt.name, [self.scanner.get_current_line()] + list(self.last_token))
+        elif isinstance(last_stmt, NonTerminal):
             rhs = self.get_rhs_from_table(last_stmt)
             if not rhs or rhs[0].name == 'SYNCH':
                 self.handle_panic(last_stmt)
@@ -90,8 +93,22 @@ class Parser:
             for element in self.stack:
                 self.remove_and_reformat_tree(element)
 
-        self.export_parse_tree()
-        self.export_syntax_errors()
+        with open('semantic_errors.txt', 'w') as f:
+            if self.code_gen.semantic_errors:
+                for i in range(len(self.code_gen.semantic_errors)):
+                    f.write(f'{self.code_gen.semantic_errors[i]}\n')
+            else:
+                f.write("The input program is semantically correct.")
+
+        with open('output.txt', 'w') as f:
+            if self.code_gen.semantic_errors:
+                f.write("The output code has not been generated.")
+            else:
+                for i in sorted(self.code_gen.PB.keys()):
+                    f.write(f'{i}\t{self.code_gen.PB[i]}\n')
+
+        # self.export_parse_tree()
+        # self.export_syntax_errors()
 
     def export_parse_tree(self):
         for node in PreOrderIter(self.root):
@@ -145,14 +162,18 @@ class Parser:
                 temp_stack.append(NonTerminal(r.name, parent=last_stmt))
             elif isinstance(r, Terminal):
                 temp_stack.append(Terminal(r.name, parent=last_stmt))
+            else:
+                temp_stack.append(Action(r.name))
 
         for r in temp_stack[::-1]:
             if isinstance(r, NonTerminal):
                 self.stack.append(r)
             elif isinstance(r, Terminal):
                 self.stack.append(r)
+            elif isinstance(r, Action):
+                self.stack.append(r)
             else:
-                raise Exception(f'r is not neither Terminal Or NonTerminal. {type(r)}')
+                raise Exception(f'r is not neither Terminal Or NonTerminal Or Action. {type(r)}')
 
     def remove_and_reformat_tree(self, last_stmt):
         if last_stmt.parent:

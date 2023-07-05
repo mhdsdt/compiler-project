@@ -23,6 +23,18 @@ class NonTerminal(Node):
         return self.name
 
 
+class Action(Node):
+    def __init__(self, name, **kwargs):
+        super(Action, self).__init__(name, **kwargs)
+        self.name = name
+
+    def __str__(self):
+        return str(self.name)
+
+    def __repr__(self):
+        return str(self.name)
+
+
 class ProductRule:
     def __init__(self, lhs: NonTerminal, rhs: list):
         self.lhs = lhs
@@ -54,6 +66,7 @@ class Grammar:
         for terminal in self.terminals:
             if terminal.name == name:
                 return terminal
+        return Action(name)
 
     def import_terminals(self):
         with open('Parser/data.json', encoding='utf-8') as f:
@@ -80,7 +93,7 @@ class Grammar:
                 non_terminal.follow = [self.get_term_by_name(term) for term in value]
 
     def import_product_rules(self):
-        with open('Parser/grammar.txt', encoding='utf-8') as f:
+        with open('Parser/code_gen_grammar.txt', encoding='utf-8') as f:
             for line in f.readlines():
                 lhs_as_str, rhs_as_str = line.strip('\n').split(' -> ')
                 lhs = self.get_term_by_name(lhs_as_str)
