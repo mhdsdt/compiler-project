@@ -65,7 +65,7 @@ class Parser:
         while len(self.stack) and last_stmt.name == 'EPSILON':
             last_stmt = self.stack.pop()
         if isinstance(last_stmt, Action):
-            self.code_gen.call(last_stmt.name, [self.scanner.get_current_line()] + list(self.last_token))
+            self.code_gen.call(last_stmt.name, (self.scanner.get_current_line(),  self.last_token[0], self.last_token[1]))
         elif isinstance(last_stmt, NonTerminal):
             rhs = self.get_rhs_from_table(last_stmt)
             if not rhs or rhs[0].name == 'SYNCH':
