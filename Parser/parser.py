@@ -98,7 +98,7 @@ class Parser:
                 for i in range(len(self.code_gen.semantic_errors)):
                     f.write(f'{self.code_gen.semantic_errors[i]}\n')
             else:
-                f.write("The input program is semantically correct.")
+                f.write("The input program is semantically correct.\n")
 
         with open('output.txt', 'w') as f:
             if self.code_gen.semantic_errors:

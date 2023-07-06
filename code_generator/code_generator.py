@@ -33,6 +33,13 @@ class CodeGen:
 
     def call(self, name, lookahead):
         self.__getattribute__(name[1:])(lookahead)
+        self.export('')
+
+    def export(self, path):
+        with open('output1.txt', "a") as f:
+            # for i in sorted(self.PB.keys()):
+            f.write(f'{self.__dict__}\n')
+            f.write('==================================\n')
 
     def insert_code(self, a, b, c='', d=''):
         self.PB[self.index] = f'({a}, {b}, {c}, {d})'
@@ -245,17 +252,17 @@ class CodeGen:
     def scope_check(self, lookahead):
         if search_in_symbol_table(lookahead[2], self.current_scope) or lookahead[2] == 'output':
             return
-        self.semantic_errors.append(f'#{lookahead[0]} : Semantic Error! \'{lookahead[2]}\' is not defined.')
+        self.semantic_errors.append(f'#{lookahead[0]}: Semantic Error! \'{lookahead[2]}\' is not defined.')
 
     def void_check(self, var_id):
         if self.id_type[2] == 'void':
-            self.semantic_errors.append(f'#{self.id_type[0]} : Semantic Error! Illegal type of void for \'{var_id}\'.')
+            self.semantic_errors.append(f'#{self.id_type[0]}: Semantic Error! Illegal type of void for \'{var_id}\'.')
 
     def break_check(self, lookahead):
         if len(self.isLoop) > 0:
             return
         self.semantic_errors.append(
-            f'#{lookahead[0]} : Semantic Error! No \'repeat ... until\' found for \'break\'.')
+            f'#{lookahead[0]}: Semantic Error! No \'repeat ... until\' found for \'break\'.')
 
     def type_mismatch(self, lookahead, operand_1, operand_2):
         if operand_2 is None or operand_1 is None:
@@ -278,10 +285,10 @@ class CodeGen:
             operand_2_type = 'array' if operand_2_type == 'int*' else operand_2_type
             if self.isMult:
                 self.semantic_errors.append(
-                    f'#{lookahead[0]} : Semantic Error! Type mismatch in operands, Got array instead of int.')
+                    f'#{lookahead[0]}: Semantic Error! Type mismatch in operands, Got array instead of int.')
             else:
                 self.semantic_errors.append(
-                    f'#{lookahead[0]} : Semantic Error! Type mismatch in operands, Got {operand_2_type} instead of {operand_1_type}.')
+                    f'#{lookahead[0]}: Semantic Error! Type mismatch in operands, Got {operand_2_type} instead of {operand_1_type}.')
 
     def parameter_num_matching(self, lookahead, args, attributes):
         func_name = ''
@@ -294,21 +301,21 @@ class CodeGen:
                 func_args = i
         if len(func_args) != len(args):
             self.semantic_errors.append(
-                f'#{lookahead[0]} : Semantic Error! Mismatch in numbers of arguments of \'{func_name}\'.')
+                f'#{lookahead[0]}: Semantic Error! Mismatch in numbers of arguments of \'{func_name}\'.')
 
     def parameter_type_matching(self, lookahead, var, arg, num):
         if arg.startswith('#'):
             if var[1] != 'int':
                 var_type = 'array' if var[1] == 'int*' else var[1]
                 self.semantic_errors.append(
-                    f'#{lookahead[0]} : Semantic Error! Mismatch in type of argument {num} of \'{self.get_func_name(var)}\'. Expected \'{var_type}\' but got \'int\' instead.')
+                    f'#{lookahead[0]}: Semantic Error! Mismatch in type of argument {num} of \'{self.get_func_name(var)}\'. Expected \'{var_type}\' but got \'int\' instead.')
         else:
             for rec in symbol_table['ID']:
                 if rec[2] == arg and rec[1] != var[1]:
                     type = 'array' if rec[1] == 'int*' else rec[1]
                     var_type = 'array' if var[1] == 'int*' else var[1]
                     self.semantic_errors.append(
-                        f'#{lookahead[0]} : Semantic Error! Mismatch in type of argument {num} of \'{self.get_func_name(var)}\'. Expected \'{var_type}\' but got \'{type}\' instead.')
+                        f'#{lookahead[0]}: Semantic Error! Mismatch in type of argument {num} of \'{self.get_func_name(var)}\'. Expected \'{var_type}\' but got \'{type}\' instead.')
 
     def get_func_name(self, var):
         for rec in symbol_table['ID']:
