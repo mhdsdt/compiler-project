@@ -23,6 +23,8 @@ class CodeGen:
         self.id_type = 'void'
         self.isLoop = []
         self.isMult = False
+        self.name = None
+        self.lookahead = None
 
     def find_address(item):
         if item == 'output':
@@ -32,8 +34,10 @@ class CodeGen:
                 return i[2]
 
     def call(self, name, lookahead):
+        self.name = name
+        self.lookahead = lookahead
         self.__getattribute__(name[1:])(lookahead)
-        self.export('')
+        # self.export('')
 
     def export(self, path):
         with open('output1.txt', "a") as f:
