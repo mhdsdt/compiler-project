@@ -34,7 +34,7 @@ Term -> Factor G
 Term-prime -> Factor-prime G
 Term-zegond -> Factor-zegond G
 G -> * Factor #multiply G | EPSILON
-Factor -> ( Expression ) | #push_num NUM | #get_id ID Var-call-prime
+Factor -> ( Expression ) | #get_id ID Var-call-prime | #push_num NUM
 Var-call-prime -> ( Args #implicit_output ) #call_function | Var-prime
 Var-prime -> [ Expression ] #array_index | EPSILON
 Factor-prime ->  ( Args #implicit_output ) #call_function | EPSILON
