@@ -1,3 +1,4 @@
+from Parser.transition_diagram_parser import TransitionDiagramParser
 from scanner.scanner import Scanner
 from Parser.parser import Parser
 from Parser.grammar import Grammar
@@ -13,7 +14,8 @@ class Compiler:
         self.input_file = input_file
 
     def compile(self):
-        parser = Parser(Scanner(self.input_file), Grammar())
+        # parser = Parser(Scanner(self.input_file), Grammar())
+        parser = TransitionDiagramParser(Scanner(self.input_file), Grammar())
         parser.parse()
 
     def print_output(self):
@@ -33,7 +35,7 @@ class Compiler:
 def main():
     compiler = Compiler('input.txt')
     compiler.compile()
-    compiler.print_output()
+    # compiler.print_output()
 
 
 if __name__ == '__main__':
