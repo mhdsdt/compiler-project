@@ -52,15 +52,22 @@ class AddressManager:
         return self.__symbol_table['ID']
 
 
+class TablesManger:
+    def __init__(self):
+        self.SS = []
+        self.PB = {}
+        self.semantic_errors = []
+
+
 class CodeGen:
     def __init__(self):
-        self.SS = list()
-        self.PB = dict()
-        self.break_stack = list()
-        self.current_scope = 0
-        self.return_stack = list()
-        self.address_manager = AddressManager()
+        self.SS = []
+        self.PB = {}
         self.semantic_errors = []
+        self.break_stack = []
+        self.current_scope = 0
+        self.return_stack = []
+        self.address_manager = AddressManager()
         self.id_type = 'void'
         self.is_loop = []
         self.is_mult = False
