@@ -52,25 +52,45 @@ class AddressManager:
         return self.__symbol_table['ID']
 
 
-class TablesManger:
-    def __init__(self):
-        self.SS = []
-        self.PB = {}
-        self.semantic_errors = []
+class Executor:
+    DEBUG_MODE = False
+
+    def __init__(self, address_manager):
+        self.__semantic_stack = []
+        self.__program_block = {}
+        self.__semantic_errors = []
+        self.__address_manager = address_manager
+
+    def get_program_block(self):
+        return self.__program_block
+
+    def add_three_address_code(self, operator, op1, op2=None, op3=None, index=None, debug=None, increase_index=False):
+        if index is None:
+            index = self.__address_manager.get_index()
+        code = f"({operator}, {op1}, {'' if op2 is None else op2}, {'' if op3 is None else op3})"
+        if debug is not None and Executor.DEBUG_MODE:
+            code += ' ' + debug
+        self.__program_block[index] = code
+        if increase_index:
+            self.__address_manager.increase_index()
+
+    def get_elements_from_semantic_stack(self, number=1, pop=True):
+        pass
 
 
 class CodeGen:
     def __init__(self):
+        self.address_manager = AddressManager()
+        self.executor = Executor(self.address_manager)
         self.SS = []
-        self.PB = {}
         self.semantic_errors = []
         self.break_stack = []
         self.current_scope = 0
         self.return_stack = []
-        self.address_manager = AddressManager()
         self.id_type = 'void'
         self.is_loop = []
         self.is_mult = False
+        self.call_sequence = []
         self.methods = {
             '#get_id_type': self.get_id_type,
             '#push_id': self.push_id,
@@ -78,11 +98,8 @@ class CodeGen:
             '#push_num': self.push_num,
             '#define_array': self.define_array,
             '#start_params': self.start_params,
-            '#start_func': self.start_func,
-            "#new_return": self.new_return,
-            "#end_return": self.end_return,
-            "#return_anyway": self.return_anyway,
-            "#end_function": self.end_function,
+            '#start_function': self.start_function,
+            '#return_from_func': self.return_from_func,
             '#define_array_argument': self.define_array_argument,
             '#push_scope': self.push_scope,
             '#pop_scope': self.pop_scope,
@@ -91,10 +108,8 @@ class CodeGen:
             '#save': self.save,
             '#jpf_save': self.jpf_save,
             '#jump': self.jump,
-            '#label': self.label,
-            '#start_loop': self.start_loop,
-            '#repeat': self.repeat,
-            '#end_loop': self.end_loop,
+            '#start_repeat': self.start_repeat,
+            '#end_repeat': self.end_repeat,
             '#save_return': self.save_return,
             '#push_index': self.push_index,
             '#get_id': self.get_id,
@@ -102,45 +117,46 @@ class CodeGen:
             '#push_operator': self.push_operator,
             '#make_op': self.make_op,
             '#multiply': self.multiply,
-            '#implicit_output': self.implicit_output,
-            '#call_function': self.call_function,
+            '#call_func': self.call_func,
             '#array_index': self.array_index,
         }
 
     def call(self, action_symbol, token_line, token_name):
+        self.call_sequence.append((action_symbol, token_line, token_name))
         self.methods[action_symbol](token_line, token_name)
         # self.export('')
 
     def export(self, path):
         with open('output1.txt', "a") as f:
-            # for i in sorted(self.PB.keys()):
             f.write(f'{self.__dict__}\n')
             f.write('==================================\n')
 
-    def insert_code(self, a, b, c='', d=''):
-        self.PB[self.address_manager.get_index()] = f'({a}, {b}, {c}, {d})'
-        self.address_manager.increase_index()
-
-    def get_temp(self, count=1):
+    def get_temp(self, count=1, initialize=True, debug=None):
         begin_address = str(self.address_manager.get_temp_address())
         for _ in range(count):
-            self.insert_code('ASSIGN', '#0', str(self.address_manager.get_temp_address()))
+            # if initialize:
+            # self.executor.add_three_address_code(
+            #     operator='ASSIGN', op1='#0', op2=str(self.address_manager.get_temp_address()), op3=None, index=None,
+            #     debug=debug, increase_index=True
+            #     )
             self.address_manager.increase_temp_address()
         return begin_address
 
     def define_variable(self, token_name, token_line):
         var_id = self.SS.pop()
         self.void_check(var_id)
-        address = self.get_temp()
+        address = self.get_temp(initialize=False, debug='define_variable')
         self.address_manager.extend_symbol_table((var_id, 'int', address, self.current_scope))
 
     def define_array(self, token_name, token_line):
         array_size, array_id = int(self.SS.pop()[1:]), self.SS.pop()
 
         self.void_check(array_id)
-        address = self.get_temp()
-        array_space = self.get_temp(array_size)
-        self.insert_code('ASSIGN', f'#{array_space}', address)
+        address = self.get_temp(initialize=False, debug='void_check')
+        array_space = self.get_temp(array_size, debug='void_check_arr_space')
+        self.executor.add_three_address_code(
+            operator='ASSIGN', op1=f'#{array_space}', op2=address, op3=None, index=None,
+            debug='define_array', increase_index=True)
         self.address_manager.extend_symbol_table((array_id, 'int*', address, self.current_scope))
 
     def get_id_type(self, token_line, token_name):
@@ -175,23 +191,28 @@ class CodeGen:
         operator = self.SS.pop()
         operand_1 = self.SS.pop()
         self.type_mismatch((token_line, token_name), operand_1, operand_2)
-        address = self.get_temp()
-        self.insert_code(self.get_equivalent_operator(operator), operand_1, operand_2, address)
+        address = self.get_temp(initialize=False, debug='make_op')
+        self.executor.add_three_address_code(
+            operator=self.get_equivalent_operator(operator), op1=operand_1, op2=operand_2, op3=address, index=None,
+            debug='make_op', increase_index=True)
         self.SS.append(address)
 
     def assign_operation(self, token_name, token_line):
-        self.insert_code('ASSIGN', self.SS[-1], self.SS[-2])
+        self.executor.add_three_address_code(
+            operator='ASSIGN', op1=self.SS[-1], op2=self.SS[-2], op3=None, index=None,
+            debug='assign_operation', increase_index=True)
         self.SS.pop()
 
     def multiply(self, token_line, token_name):
-        res = self.get_temp()
+        res = self.get_temp(initialize=False, debug='multiply')
         self.is_mult = True
         self.type_mismatch((token_line, token_name), self.SS[-2], self.SS[-1])
         self.is_mult = False
-        self.insert_code('MULT', self.SS[-1], self.SS[-2], res)
-        self.SS.pop()
-        self.SS.pop()
-        self.SS.append(res)
+        self.executor.add_three_address_code(
+            operator='MULT', op1=self.SS[-1], op2=self.SS[-2], op3=res, index=None, debug='multiply',
+            increase_index=True
+        )
+        self.SS.pop(), self.SS.pop(), self.SS.append(res)
 
     def define_array_argument(self, token_name, token_line):
         temp = self.address_manager.get_last_id_in_symbol_table()
@@ -200,50 +221,63 @@ class CodeGen:
 
     def array_index(self, token_line, token_name):
         idx, array_address = self.SS.pop(), self.SS.pop()
-        temp, result = self.get_temp(), self.get_temp()
-        self.insert_code('MULT', '#4', idx, temp)
-        self.insert_code('ASSIGN', f'{array_address}', result)
-        self.insert_code('ADD', result, temp, result)
+        temp, result = self.get_temp(initialize=False, debug='array_index'), self.get_temp(initialize=False,
+                                                                                           debug='array_index')
+        self.executor.add_three_address_code(
+            operator='MULT', op1='#4', op2=idx, op3=temp, index=None,
+            debug='array_index', increase_index=True)
+        self.executor.add_three_address_code(
+            operator='ASSIGN', op1=array_address, op2=result, op3=None, index=None,
+            debug='array_index', increase_index=True)
+        self.executor.add_three_address_code(
+            operator='ADD', op1=result, op2=temp, op3=result, index=None,
+            debug='array_index', increase_index=True)
         self.SS.append(f'@{result}')
-
-    def implicit_output(self, token_line, token_name):
-        if self.SS[-2] == 'output':
-            self.insert_code('PRINT', self.SS.pop())
 
     def save(self, token_name, token_line):
         self.SS.append(self.address_manager.get_index())
         self.address_manager.increase_index()
 
-    def label(self, token_name, token_line):
+    def start_repeat(self, token_name, token_line):
         self.SS.append(self.address_manager.get_index())
+        self.is_loop.append(1)
+        self.break_stack.append('b')
+
+    def end_repeat(self, token_name, token_line):
+        self.SS.append(self.address_manager.get_index())
+        self.address_manager.increase_index()
+
+        self.executor.add_three_address_code(
+            operator='JPF', op1=self.SS[-2], op2=self.SS[-3], op3=None, index=int(self.SS[-1]), debug='end_repeat'
+        )
+        self.executor.add_three_address_code(
+            operator='JP', op1=self.address_manager.get_index() + 1, op2=None, op3=None, index=None, debug='end_repeat'
+        )
+        self.address_manager.increase_index()
+        self.SS.pop(), self.SS.pop(), self.SS.pop()
+
+        latest_block = len(self.break_stack) - self.break_stack[::-1].index('b') - 1
+        for index in self.break_stack[latest_block + 1:]:
+            self.executor.add_three_address_code(
+                operator='JP', op1=self.address_manager.get_index(), op2=None, op3=None, index=index, debug='end_repeat'
+            )
+        self.break_stack = self.break_stack[:latest_block]
+        self.is_loop.pop()
 
     def jpf_save(self, token_name, token_line):
         dest = self.SS.pop()
         src = self.SS.pop()
-        self.PB[dest] = f'(JPF, {src}, {self.address_manager.get_index() + 1}, )'
+        self.executor.add_three_address_code(
+            operator='JPF', op1=src, op2=self.address_manager.get_index() + 1, op3=None, index=dest, debug='jpf_save'
+        )
         self.SS.append(self.address_manager.get_index())
         self.address_manager.increase_index()
 
     def jump(self, token_name, token_line):
         dest = int(self.SS.pop())
-        self.PB[dest] = f'(JP, {self.address_manager.get_index()}, , )'
-
-    def repeat(self, token_name, token_line):
-        self.PB[int(self.SS[-1])] = f'(JPF, {self.SS[-2]},{self.SS[-3]}, )'
-        self.PB[self.address_manager.get_index()] = f'(JP,  {self.address_manager.get_index() + 1}, , )'
-        self.address_manager.increase_index()
-        self.SS.pop(), self.SS.pop(), self.SS.pop()
-
-    def start_loop(self, token_name, token_line):
-        self.is_loop.append(1)
-        self.break_stack.append('b')
-
-    def end_loop(self, token_name, token_line):
-        latest_block = len(self.break_stack) - self.break_stack[::-1].index('b') - 1
-        for item in self.break_stack[latest_block + 1:]:
-            self.PB[item] = f'(JP, {self.address_manager.get_index()}, , )'
-        self.break_stack = self.break_stack[:latest_block]
-        self.is_loop.pop()
+        self.executor.add_three_address_code(
+            operator='JP', op1=self.address_manager.get_index(), op2=None, op3=None, index=dest, debug='jump'
+        )
 
     def break_loop(self, token_line, token_name):
         self.break_check((token_line, token_name))
@@ -253,18 +287,11 @@ class CodeGen:
     def clean_up(self, token_name, token_line):
         self.SS.pop()
 
-    def end_function(self, token_name, token_line):
-        self.SS.pop(), self.SS.pop(), self.SS.pop()
-        symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
-        for item in symbol_table_ids[::-1]:
-            if item[1] == 'function':
-                if item[0] == 'main':
-                    self.PB[self.SS.pop()] = f'(ASSIGN, #0, {self.get_temp()}, )'
-                    return
-                break
-        self.PB[self.SS.pop()] = f'(JP, {self.address_manager.get_index()}, , )'
-
-    def call_function(self, token_line, token_name):
+    def call_func(self, token_line, token_name):
+        if self.SS[-2] == 'output':
+            self.executor.add_three_address_code(
+                operator='PRINT', op1=self.SS.pop(), op2=None, op3=None, index=None,
+                debug='call_func', increase_index=True)
         if self.SS[-1] != 'output':
             args, attributes = [], []
             for i in self.SS[::-1]:
@@ -275,15 +302,27 @@ class CodeGen:
             self.parameter_num_matching((token_line, token_name), args, attributes)
             for var, arg in zip(attributes[1], args):
                 self.parameter_type_matching((token_line, token_name), var, arg, attributes[1].index(var) + 1)
-                self.insert_code('ASSIGN', arg, var[2])
+                self.executor.add_three_address_code(
+                    operator='ASSIGN', op1=arg, op2=var[2], op3=None, index=None, debug='call_func',
+                    increase_index=True
+                )
                 self.SS.pop()
             for i in range(len(args) - len(attributes[1])):
                 self.SS.pop()
             self.SS.pop()
-            self.insert_code('ASSIGN', f'#{self.address_manager.get_index() + 2}', attributes[2])
-            self.insert_code('JP', attributes[-1])
-            result = self.get_temp()
-            self.insert_code('ASSIGN', attributes[0], result)
+            self.executor.add_three_address_code(
+                operator='ASSIGN', op1=f'#{self.address_manager.get_index() + 2}', op2=attributes[2], op3=None,
+                index=None, debug='call_func', increase_index=True
+            )
+            self.executor.add_three_address_code(
+                operator='JP', op1=attributes[-1], op2=None, op3=None,
+                index=None, debug='call_func', increase_index=True
+            )
+            result = self.get_temp(initialize=False, debug='call_func')
+            self.executor.add_three_address_code(
+                operator='ASSIGN', op1=attributes[0], op2=result, op3=None,
+                index=None, debug='call_func', increase_index=True
+            )
             self.SS.append(result)
 
     def start_params(self, token_name, token_line):
@@ -296,10 +335,15 @@ class CodeGen:
     def push_index(self, token_name, token_line):
         self.SS.append(f'#{self.address_manager.get_index()}')
 
-    def start_func(self, token_name, token_line):
-        return_address = self.get_temp()
+    def save_return(self, token_name, token_line):
+        self.return_stack.append((self.address_manager.get_index(), self.SS[-1]))
+        self.SS.pop()
+        self.address_manager.increase_index(2)
+
+    def start_function(self, token_name, token_line):
+        return_address = self.get_temp(initialize=False, debug='start_function')
         current_index = self.address_manager.get_index()
-        return_value = self.get_temp()
+        return_value = self.get_temp(initialize=False, debug='start_function')
         self.SS.append(return_value)
         self.SS.append(return_address)
         func_name = self.SS[-3]
@@ -309,29 +353,45 @@ class CodeGen:
         symbol_table_ids.pop(args_start_idx)
         symbol_table_ids.append(
             (func_name, 'function', [return_value, func_args, return_address, current_index], self.current_scope))
-
-    def new_return(self, token_name, token_line):
         self.return_stack.append('b')
 
-    def save_return(self, token_name, token_line):
-        self.return_stack.append((self.address_manager.get_index(), self.SS[-1]))
-        self.SS.pop()
-        self.address_manager.increase_index(2)
-
-    def return_anyway(self, token_name, token_line):
-        if self.SS[-3] != 'main':
-            return_address = self.SS[-1]
-            self.insert_code('JP', f'@{return_address}')
-
-    def end_return(self, token_name, token_line):
+    def return_from_func(self, token_name, token_line):
         latest_func = len(self.return_stack) - self.return_stack[::-1].index('b') - 1
         return_value = self.SS[-2]
         return_address = self.SS[-1]
         for item in self.return_stack[latest_func + 1:]:
-            self.PB[item[0]] = f'(ASSIGN, {item[1]}, {return_value}, )'
-            self.PB[item[0] + 1] = f'(JP, @{return_address}, , )'
-
+            self.executor.add_three_address_code(
+                operator='ASSIGN', op1=item[1], op2=return_value, op3=None, index=item[0], debug='return_from_func'
+            )
+            self.executor.add_three_address_code(
+                operator='JP', op1='@' + str(return_address), op2=None, op3=None, index=item[0] + 1,
+                debug='return_from_func'
+            )
         self.return_stack = self.return_stack[:latest_func]
+
+        if self.SS[-3] != 'main':
+            return_address = self.SS[-1]
+            self.executor.add_three_address_code(
+                operator='JP', op1='@' + str(return_address), op2=None, op3=None, index=None,
+                debug='return_from_func', increase_index=True)
+
+        self.SS.pop(), self.SS.pop(), self.SS.pop()
+        symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
+        for item in symbol_table_ids[::-1]:
+            if item[1] == 'function':
+                if item[0] == 'main':
+                    index = self.SS.pop()
+                    temp = self.get_temp(initialize=False, debug='return_from_func')
+                    self.executor.add_three_address_code(
+                        operator='ASSIGN', op1='#0', op2=temp, op3=None, index=index, debug='return_from_func1'
+                    )
+                    return
+                break
+        index = self.SS.pop()
+        self.executor.add_three_address_code(
+            operator='JP', op1=self.address_manager.get_index(), op2=None, op3=None, index=index,
+            debug='return_from_func',
+        )
 
     def scope_check(self, lookahead):
         if self.address_manager.is_in_symbol_table(lookahead[1], self.current_scope) or lookahead[1] == 'output':

@@ -89,8 +89,8 @@ class TransitionDiagramParser:
                 self.procedure(NonTerminal(term.name, parent=parent))
             elif isinstance(term, Terminal):
                 self.match(term.name, parent)
-            elif isinstance(term, Action):
-                self.code_gen.call(parent.name, self.scanner.get_current_line(),  self.current_token[1])
+            # elif isinstance(term, Action):
+            #     self.code_gen.call(term.name, self.scanner.get_current_line(), self.current_token[1])
 
     def match(self, expected_token: str, parent):
         # print('--------------------------')

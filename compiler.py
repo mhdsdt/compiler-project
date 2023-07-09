@@ -14,8 +14,8 @@ class Compiler:
         self.input_file = input_file
 
     def compile(self):
-        # parser = Parser(Scanner(self.input_file), Grammar())
-        parser = TransitionDiagramParser(Scanner(self.input_file), Grammar())
+        parser = Parser(Scanner(self.input_file), Grammar())
+        # parser = TransitionDiagramParser(Scanner(self.input_file), Grammar())
         parser.parse()
 
     def print_output(self):

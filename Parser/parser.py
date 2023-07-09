@@ -100,12 +100,24 @@ class Parser:
             else:
                 f.write("The input program is semantically correct.\n")
 
+        # with open('output.txt', 'w') as f:
+        #     if self.code_gen.semantic_errors:
+        #         f.write("The output code has not been generated.")
+        #     else:
+        #         for i in sorted(self.code_gen.PB.keys()):
+        #             f.write(f'{i}\t{self.code_gen.PB[i]}\n')
+
         with open('output.txt', 'w') as f:
             if self.code_gen.semantic_errors:
                 f.write("The output code has not been generated.")
             else:
-                for i in sorted(self.code_gen.PB.keys()):
-                    f.write(f'{i}\t{self.code_gen.PB[i]}\n')
+                program_block = self.code_gen.executor.get_program_block()
+                for i in sorted(program_block.keys()):
+                    f.write(f'{i}\t{program_block[i]}\n')
+
+        with open('call_sequence.txt', 'w') as f:
+            for i, seq in enumerate(self.code_gen.call_sequence):
+                f.write(f'{i}\t{seq}\n')
 
         # self.export_parse_tree()
         # self.export_syntax_errors()

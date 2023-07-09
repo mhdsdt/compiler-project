@@ -18,12 +18,14 @@ class Color:
 
 def compare_files(file1_path, file2_path):
     with open(file1_path, 'r') as f1, open(file2_path, 'r') as f2:
-        for line1, line2 in zip(f1, f2):
-            line1 = line1.strip()
-            line2 = line2.strip()
-            if line1.strip() and line2.strip():  # Skip lines with only spaces
-                if line1 != line2:
-                    return False
+        lines1, lines2 = f1.readlines(), f2.readlines()
+        lines1 = [line.strip() for line in lines1 if line.strip() != '']
+        lines2 = [line.strip() for line in lines2 if line.strip() != '']
+        if len(lines1) != len(lines2):
+            return False
+        for i in range(len(lines1)):
+            if lines1[i] != lines2[i]:
+                return False
     return True
 
 
