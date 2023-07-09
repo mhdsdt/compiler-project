@@ -1,6 +1,7 @@
 from anytree import PreOrderIter, RenderTree
 
-from Parser.grammar import NonTerminal, Terminal
+from Parser.grammar import NonTerminal, Terminal, Action
+from code_generator.code_generator import CodeGen
 from scanner.enums_constants import TokenType, get_symbols, get_keywords
 from utils.tables import ROOT_DIR, ErrorsTable
 
@@ -13,6 +14,7 @@ class TransitionDiagramParser:
         self.current_token = None
         self.errors = []
         self.unexpected_eof_reached = False
+        self.code_gen = CodeGen()
 
     def get_next_token(self):
         token = self.scanner.get_next_token()
@@ -24,6 +26,20 @@ class TransitionDiagramParser:
         self.procedure(self.root)
         if not self.unexpected_eof_reached:
             self.match(TokenType.EOF.value, self.root)
+
+        with open('semantic_errors.txt', 'w') as f:
+            if self.code_gen.semantic_errors:
+                for i in range(len(self.code_gen.semantic_errors)):
+                    f.write(f'{self.code_gen.semantic_errors[i]}\n')
+            else:
+                f.write("The input program is semantically correct.\n")
+
+        with open('output.txt', 'w') as f:
+            if self.code_gen.semantic_errors:
+                f.write("The output code has not been generated.")
+            else:
+                for i in sorted(self.code_gen.PB.keys()):
+                    f.write(f'{i}\t{self.code_gen.PB[i]}\n')
 
         self.export_parse_tree()
         self.export_syntax_errors()
@@ -73,6 +89,8 @@ class TransitionDiagramParser:
                 self.procedure(NonTerminal(term.name, parent=parent))
             elif isinstance(term, Terminal):
                 self.match(term.name, parent)
+            elif isinstance(term, Action):
+                self.code_gen.call(parent.name, self.scanner.get_current_line(),  self.current_token[1])
 
     def match(self, expected_token: str, parent):
         # print('--------------------------')

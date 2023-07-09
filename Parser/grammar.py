@@ -108,7 +108,7 @@ class Grammar:
                 lhs_as_str, rhs_as_str = line.strip('\n').split(' -> ')
                 lhs = self.get_term_by_name(lhs_as_str)
                 for rule in rhs_as_str.split('|'):
-                    terms = [self.get_term_by_name(term) for term in rule.split() if not term.startswith('#')]
+                    terms = [self.get_term_by_name(term) for term in rule.split()]
                     self.add_product_rule(ProductRule(lhs, terms))
 
     def import_predicts(self):

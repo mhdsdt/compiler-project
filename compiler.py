@@ -35,7 +35,7 @@ class Compiler:
 def main():
     compiler = Compiler('input.txt')
     compiler.compile()
-    # compiler.print_output()
+    compiler.print_output()
 
 
 if __name__ == '__main__':
