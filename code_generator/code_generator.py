@@ -83,6 +83,7 @@ class CodeGen:
         self.address_manager = AddressManager()
         self.executor = Executor(self.address_manager)
         self.SS = []
+        self.new_Symbol_table = {}
         self.semantic_errors = []
         self.break_stack = []
         self.current_scope = 0
@@ -164,9 +165,11 @@ class CodeGen:
 
     def push_id(self, token_line, token_name):
         self.SS.append(token_name)
+        self.new_Symbol_table[(token_name, self.current_scope)] = self.id_type[1]
 
     def get_id(self, token_line, token_name):
         self.scope_check((token_line, token_name))
+        # print('get_id', token_name, self.address_manager.find_symbol_address(token_name))
         self.SS.append(self.address_manager.find_symbol_address(token_name))
 
     def push_num(self, token_line, token_name):
@@ -292,38 +295,43 @@ class CodeGen:
             self.executor.add_three_address_code(
                 operator='PRINT', op1=self.SS.pop(), op2=None, op3=None, index=None,
                 debug='call_func', increase_index=True)
-        if self.SS[-1] != 'output':
-            args, attributes = [], []
-            for i in self.SS[::-1]:
-                if isinstance(i, list):
-                    attributes = i
-                    break
-                args = [i] + args
-            self.parameter_num_matching((token_line, token_name), args, attributes)
-            for var, arg in zip(attributes[1], args):
-                self.parameter_type_matching((token_line, token_name), var, arg, attributes[1].index(var) + 1)
-                self.executor.add_three_address_code(
-                    operator='ASSIGN', op1=arg, op2=var[2], op3=None, index=None, debug='call_func',
-                    increase_index=True
-                )
-                self.SS.pop()
-            for i in range(len(args) - len(attributes[1])):
-                self.SS.pop()
+        if self.SS[-1] == 'output':
+            return
+        args, attributes = [], []
+        for i in self.SS[::-1]:
+            if isinstance(i, list):
+                attributes = i
+                break
+            args = [i] + args
+        self.parameter_num_matching((token_line, token_name), args, attributes)
+        for var, arg in zip(attributes[1], args):
+            self.parameter_type_matching((token_line, token_name), var, arg, attributes[1].index(var) + 1)
+            self.executor.add_three_address_code(
+                operator='ASSIGN', op1=arg, op2=var[2], op3=None, index=None, debug='call_func0',
+                increase_index=True
+            )
             self.SS.pop()
-            self.executor.add_three_address_code(
-                operator='ASSIGN', op1=f'#{self.address_manager.get_index() + 2}', op2=attributes[2], op3=None,
-                index=None, debug='call_func', increase_index=True
-            )
-            self.executor.add_three_address_code(
-                operator='JP', op1=attributes[-1], op2=None, op3=None,
-                index=None, debug='call_func', increase_index=True
-            )
-            result = self.get_temp(initialize=False, debug='call_func')
-            self.executor.add_three_address_code(
-                operator='ASSIGN', op1=attributes[0], op2=result, op3=None,
-                index=None, debug='call_func', increase_index=True
-            )
-            self.SS.append(result)
+        for i in range(len(args) - len(attributes[1]) + 1):
+            self.SS.pop()
+        self.executor.add_three_address_code(
+            operator='ASSIGN', op1=f'#{self.address_manager.get_index() + 2}', op2=attributes[2], op3=None,
+            index=None, debug='call_func1', increase_index=True
+        )
+        self.executor.add_three_address_code(
+            operator='JP', op1=attributes[-1], op2=None, op3=None,
+            index=None, debug='call_func', increase_index=True
+        )
+        symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
+        print(token_name, symbol_table_ids)
+        for item in symbol_table_ids[::-1]:
+            if item[0] == token_name:
+                print(item)
+        result = self.get_temp(initialize=False, debug='call_func')
+        self.executor.add_three_address_code(
+            operator='ASSIGN', op1=attributes[0], op2=result, op3=None,
+            index=None, debug='call_func2', increase_index=True
+        )
+        self.SS.append(result)
 
     def start_params(self, token_name, token_line):
         func_name = self.SS.pop()
@@ -351,8 +359,9 @@ class CodeGen:
         args_start_idx = symbol_table_ids.index('s')
         func_args = symbol_table_ids[args_start_idx + 1:]
         symbol_table_ids.pop(args_start_idx)
+        print(self.id_type)
         symbol_table_ids.append(
-            (func_name, 'function', [return_value, func_args, return_address, current_index], self.current_scope))
+            (func_name, 'function', [return_value, func_args, return_address, current_index], self.current_scope, self.id_type[1]))
         self.return_stack.append('b')
 
     def return_from_func(self, token_name, token_line):
@@ -361,11 +370,11 @@ class CodeGen:
         return_address = self.SS[-1]
         for item in self.return_stack[latest_func + 1:]:
             self.executor.add_three_address_code(
-                operator='ASSIGN', op1=item[1], op2=return_value, op3=None, index=item[0], debug='return_from_func'
+                operator='ASSIGN', op1=item[1], op2=return_value, op3=None, index=item[0], debug='return_from_func0'
             )
             self.executor.add_three_address_code(
                 operator='JP', op1='@' + str(return_address), op2=None, op3=None, index=item[0] + 1,
-                debug='return_from_func'
+                debug='return_from_func0'
             )
         self.return_stack = self.return_stack[:latest_func]
 
@@ -373,24 +382,23 @@ class CodeGen:
             return_address = self.SS[-1]
             self.executor.add_three_address_code(
                 operator='JP', op1='@' + str(return_address), op2=None, op3=None, index=None,
-                debug='return_from_func', increase_index=True)
+                debug='return_from_func1', increase_index=True)
 
         self.SS.pop(), self.SS.pop(), self.SS.pop()
         symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
         for item in symbol_table_ids[::-1]:
-            if item[1] == 'function':
-                if item[0] == 'main':
-                    index = self.SS.pop()
-                    temp = self.get_temp(initialize=False, debug='return_from_func')
-                    self.executor.add_three_address_code(
-                        operator='ASSIGN', op1='#0', op2=temp, op3=None, index=index, debug='return_from_func1'
-                    )
-                    return
-                break
+            if item[1] == 'function' and item[0] == 'main':
+                index = self.SS.pop()
+                temp = self.get_temp(initialize=False, debug='return_from_func1')
+                self.executor.add_three_address_code(
+                    operator='ASSIGN', op1='#0', op2=temp, op3=None, index=index, debug='return_from_func1'
+                )
+                return
+            break
         index = self.SS.pop()
         self.executor.add_three_address_code(
             operator='JP', op1=self.address_manager.get_index(), op2=None, op3=None, index=index,
-            debug='return_from_func',
+            debug='return_from_func2',
         )
 
     def scope_check(self, lookahead):
