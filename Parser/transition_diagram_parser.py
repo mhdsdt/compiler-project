@@ -27,19 +27,8 @@ class TransitionDiagramParser:
         if not self.unexpected_eof_reached:
             self.match(TokenType.EOF.value, self.root)
 
-        with open('semantic_errors.txt', 'w') as f:
-            if self.code_gen.semantic_errors:
-                for i in range(len(self.code_gen.semantic_errors)):
-                    f.write(f'{self.code_gen.semantic_errors[i]}\n')
-            else:
-                f.write("The input program is semantically correct.\n")
-
-        with open('output.txt', 'w') as f:
-            if self.code_gen.semantic_errors:
-                f.write("The output code has not been generated.")
-            else:
-                for i in sorted(self.code_gen.PB.keys()):
-                    f.write(f'{i}\t{self.code_gen.PB[i]}\n')
+        self.export_semantic_errors()
+        self.export_program_block()
 
         self.export_parse_tree()
         self.export_syntax_errors()
@@ -130,3 +119,20 @@ class TransitionDiagramParser:
     def export_syntax_errors(self):
         errors_table = ErrorsTable(self.errors)
         errors_table.export_syntax_errors()
+
+    def export_semantic_errors(self):
+        with open('semantic_errors.txt', 'w') as f:
+            if self.code_gen.executor.get_semantic_errors():
+                for i in range(len(self.code_gen.executor.get_semantic_errors())):
+                    f.write(f'{self.code_gen.executor.get_semantic_errors()[i]}\n')
+            else:
+                f.write("The input program is semantically correct.\n")
+
+    def export_program_block(self):
+        with open('output.txt', 'w') as f:
+            if self.code_gen.executor.get_semantic_errors():
+                f.write("The output code has not been generated.")
+            else:
+                program_block = self.code_gen.executor.get_program_block()
+                for i in sorted(program_block.keys()):
+                    f.write(f'{i}\t{program_block[i]}\n')

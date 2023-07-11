@@ -65,7 +65,7 @@ class Parser:
         while len(self.stack) and last_stmt.name == 'EPSILON':
             last_stmt = self.stack.pop()
         if isinstance(last_stmt, Action):
-            self.code_gen.call(last_stmt.name, self.scanner.get_current_line(),  self.last_token[1])
+            self.code_gen.call(last_stmt.name, self.scanner.get_current_line(), self.last_token[1])
         elif isinstance(last_stmt, NonTerminal):
             rhs = self.get_rhs_from_table(last_stmt)
             if not rhs or rhs[0].name == 'SYNCH':
@@ -93,27 +93,8 @@ class Parser:
             for element in self.stack:
                 self.remove_and_reformat_tree(element)
 
-        with open('semantic_errors.txt', 'w') as f:
-            if self.code_gen.semantic_errors:
-                for i in range(len(self.code_gen.semantic_errors)):
-                    f.write(f'{self.code_gen.semantic_errors[i]}\n')
-            else:
-                f.write("The input program is semantically correct.\n")
-
-        # with open('output.txt', 'w') as f:
-        #     if self.code_gen.semantic_errors:
-        #         f.write("The output code has not been generated.")
-        #     else:
-        #         for i in sorted(self.code_gen.PB.keys()):
-        #             f.write(f'{i}\t{self.code_gen.PB[i]}\n')
-
-        with open('output.txt', 'w') as f:
-            if self.code_gen.semantic_errors:
-                f.write("The output code has not been generated.")
-            else:
-                program_block = self.code_gen.executor.get_program_block()
-                for i in sorted(program_block.keys()):
-                    f.write(f'{i}\t{program_block[i]}\n')
+        self.export_semantic_errors()
+        self.export_program_block()
 
         with open('call_sequence.txt', 'w') as f:
             for i, seq in enumerate(self.code_gen.call_sequence):
@@ -192,3 +173,20 @@ class Parser:
             children = list(last_stmt.parent.children)
             children.remove(last_stmt)
             last_stmt.parent.children = tuple(children)
+
+    def export_semantic_errors(self):
+        with open('semantic_errors.txt', 'w') as f:
+            if self.code_gen.executor.get_semantic_errors():
+                for i in range(len(self.code_gen.executor.get_semantic_errors())):
+                    f.write(f'{self.code_gen.executor.get_semantic_errors()[i]}\n')
+            else:
+                f.write("The input program is semantically correct.\n")
+
+    def export_program_block(self):
+        with open('output.txt', 'w') as f:
+            if self.code_gen.executor.get_semantic_errors():
+                f.write("The output code has not been generated.")
+            else:
+                program_block = self.code_gen.executor.get_program_block()
+                for i in sorted(program_block.keys()):
+                    f.write(f'{i}\t{program_block[i]}\n')

@@ -19,7 +19,6 @@ class Compiler:
         parser.parse()
 
     def print_output(self):
-
         wsl_command = "wsl /mnt/d/university/6th_term/cd/project/tester_linux.out"
         output = subprocess.check_output(wsl_command, shell=True, text=True)
         lines = output.split('\n')

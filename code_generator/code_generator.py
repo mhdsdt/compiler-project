@@ -1,6 +1,3 @@
-from scanner.enums_constants import get_keywords
-
-
 class AddressManager:
     DEFAULT_WORD_SIZE = 4
     DEFAULT_INDEX_INCREMENT = 1
@@ -8,7 +5,7 @@ class AddressManager:
     def __init__(self):
         self.__index = 0
         self.__temp_address = 500
-        self.__symbol_table = {'KEYWORD': get_keywords(), 'ID': []}
+        self.__code_gen_symbol_table = []
 
     def get_temp_address(self):
         return self.__temp_address
@@ -27,7 +24,7 @@ class AddressManager:
         self.__index += amount
 
     def is_in_symbol_table(self, item, scope_num=0):
-        for i in self.__symbol_table['ID'][::-1]:
+        for i in self.__code_gen_symbol_table[::-1]:
             if item == i[0] and i[3] <= scope_num:
                 return True
         return False
@@ -36,29 +33,28 @@ class AddressManager:
         if symbol == 'output':
             return symbol
         if symbol == 'arr':
-            print('symbol_table', self.__symbol_table['ID'])
-        for i in self.__symbol_table['ID'][::-1]:
+            print('symbol_table', self.__code_gen_symbol_table)
+        for i in self.__code_gen_symbol_table[::-1]:
             if symbol == i[0]:
                 return i[2]
 
     def extend_symbol_table(self, symbol_info):
-        self.__symbol_table['ID'].append(symbol_info)
+        self.__code_gen_symbol_table.append(symbol_info)
 
     def get_last_id_in_symbol_table(self):
-        return self.__symbol_table['ID'][-1]
+        return self.__code_gen_symbol_table[-1]
 
     def delete_last_id_in_symbol_table(self):
-        del self.__symbol_table['ID'][-1]
+        del self.__code_gen_symbol_table[-1]
 
     def get_ids_from_symbol_table(self):
-        return self.__symbol_table['ID']
+        return self.__code_gen_symbol_table
 
 
 class Executor:
     DEBUG_MODE = False
 
     def __init__(self, address_manager):
-        self.__semantic_stack = []
         self.__program_block = {}
         self.__semantic_errors = []
         self.__address_manager = address_manager
@@ -79,14 +75,85 @@ class Executor:
     def get_elements_from_semantic_stack(self, number=1, pop=True):
         pass
 
+    def scope_check(self, token_line, token_name, scope):
+        if self.__address_manager.is_in_symbol_table(token_name, scope) or token_name == 'output':
+            return
+        self.__semantic_errors.append(f'#{token_line}: Semantic Error! \'{token_name}\' is not defined.')
+
+    def void_check(self, variable_id, current_id, current_id_line):
+        if current_id == 'void':
+            self.__semantic_errors.append(f'#{current_id_line}: Semantic Error! Illegal type of void for \'{variable_id}\'.')
+
+    def break_check(self, token_line, repeats):
+        if len(repeats) > 0:
+            return
+        self.__semantic_errors.append(
+            f'#{token_line}: Semantic Error! No \'repeat ... until\' found for \'break\'.')
+
+    def type_mismatch(self, token_line, operand_1, operand_2, in_multiplication):
+        if operand_2 is None or operand_1 is None:
+            return
+        operand_2_type = 'int'
+        operand_1_type = 'int'
+        symbol_table_ids = self.__address_manager.get_ids_from_symbol_table()
+        if not operand_1.startswith('#'):
+            for s in symbol_table_ids:
+                if s[2] == operand_1:
+                    operand_1_type = s[1]
+                    break
+        if not operand_2.startswith('#'):
+            for s in symbol_table_ids:
+                if s[2] == operand_2:
+                    operand_2_type = s[1]
+                    break
+
+        if operand_2_type != operand_1_type:
+            operand_1_type = 'array' if operand_1_type == 'int*' else operand_1_type
+            operand_2_type = 'array' if operand_2_type == 'int*' else operand_2_type
+            if in_multiplication:
+                self.__semantic_errors.append(
+                    f'#{token_line}: Semantic Error! Type mismatch in operands, Got array instead of int.')
+            else:
+                self.__semantic_errors.append(
+                    f'#{token_line}: Semantic Error! Type mismatch in operands, Got {operand_2_type} instead of {operand_1_type}.')
+
+    def parameter_num_matching(self, token_line, args, attributes):
+        func_name = ''
+        symbol_table_ids = self.__address_manager.get_ids_from_symbol_table()
+        for i in symbol_table_ids:
+            if i[2] == attributes:
+                func_name = i[0]
+        func_args = []
+        for i in attributes:
+            if isinstance(i, list):
+                func_args = i
+        if len(func_args) != len(args):
+            self.__semantic_errors.append(
+                f'#{token_line}: Semantic Error! Mismatch in numbers of arguments of \'{func_name}\'.')
+
+    def parameter_type_matching(self, token_line, var, arg, num, function_name):
+        if arg.startswith('#'):
+            if var[1] != 'int':
+                var_type = 'array' if var[1] == 'int*' else var[1]
+                self.__semantic_errors.append(
+                    f'#{token_line}: Semantic Error! Mismatch in type of argument {num} of \'{function_name}\'. Expected \'{var_type}\' but got \'int\' instead.')
+        else:
+            for rec in self.__address_manager.get_ids_from_symbol_table():
+                if rec[2] == arg and rec[1] != var[1]:
+                    type = 'array' if rec[1] == 'int*' else rec[1]
+                    var_type = 'array' if var[1] == 'int*' else var[1]
+                    self.__semantic_errors.append(
+                        f'#{token_line}: Semantic Error! Mismatch in type of argument {num} of \'{function_name}\'. Expected \'{var_type}\' but got \'{type}\' instead.')
+
+    def get_semantic_errors(self):
+        return self.__semantic_errors
 
 class CodeGen:
     def __init__(self):
         self.address_manager = AddressManager()
         self.executor = Executor(self.address_manager)
-        self.SS = []
+        self.semantic_stack = []
         self.new_Symbol_table = {}
-        self.semantic_errors = []
         self.break_stack = []
         self.current_scope = 0
         self.return_stack = []
@@ -142,8 +209,8 @@ class CodeGen:
         return begin_address
 
     def define_variable(self, token_name, token_line):
-        var_id = self.SS.pop()
-        self.void_check(var_id)
+        var_id = self.semantic_stack.pop()
+        self.executor.void_check(var_id, self.id_type[1], self.id_type[0])
         address = self.get_temp(initialize=False, debug='define_variable')
         if self.in_params:
             scope = self.current_scope + 1
@@ -152,9 +219,9 @@ class CodeGen:
         self.address_manager.extend_symbol_table((var_id, 'int', address, scope))
 
     def define_array(self, token_name, token_line):
-        array_size, array_id = int(self.SS.pop()[1:]), self.SS.pop()
+        array_size, array_id = int(self.semantic_stack.pop()[1:]), self.semantic_stack.pop()
 
-        self.void_check(array_id)
+        self.executor.void_check(array_id, self.id_type[1], self.id_type[0])
         address = self.get_temp(initialize=False, debug='void_check')
         array_space = self.get_temp(array_size, debug='void_check_arr_space')
         self.executor.add_three_address_code(
@@ -166,20 +233,20 @@ class CodeGen:
         self.id_type = (token_line, token_name)
 
     def push_id(self, token_line, token_name):
-        self.SS.append(token_name)
+        self.semantic_stack.append(token_name)
         self.new_Symbol_table[(token_name, self.current_scope)] = self.id_type[1]
 
     def get_id(self, token_line, token_name):
-        self.scope_check((token_line, token_name))
+        self.executor.scope_check(token_line, token_name, self.current_scope)
         # print('get_id', token_name, self.address_manager.find_symbol_address(token_name))
-        print('get_id', token_name, self.current_scope, self.SS)
-        self.SS.append(self.address_manager.find_symbol_address(token_name))
+        print('get_id', token_name, self.current_scope, self.semantic_stack)
+        self.semantic_stack.append(self.address_manager.find_symbol_address(token_name))
 
     def push_num(self, token_line, token_name):
-        self.SS.append(f'#{token_name}')
+        self.semantic_stack.append(f'#{token_name}')
 
     def push_operator(self, token_line, token_name):
-        self.SS.append(token_name)
+        self.semantic_stack.append(token_name)
 
     def get_equivalent_operator(self, operator):
         if operator == '+':
@@ -193,30 +260,31 @@ class CodeGen:
         raise Exception(f"in get_equivalent_operator operator == {operator}, How this is possible?")
 
     def make_op(self, token_line, token_name):
-        op2, operator, op1 = self.SS.pop(), self.SS.pop(), self.SS.pop()
-        self.type_mismatch((token_line, token_name), op1, op2)
+        op2, operator, op1 = self.semantic_stack.pop(), self.semantic_stack.pop(), self.semantic_stack.pop()
+        self.executor.type_mismatch(token_line, op1, op2, self.in_multiplication)
         address = self.get_temp(initialize=False, debug='make_op')
         self.executor.add_three_address_code(
             operator=self.get_equivalent_operator(operator), op1=op1, op2=op2, op3=address, index=None,
             debug='make_op', increase_index=True)
-        self.SS.append(address)
+        self.semantic_stack.append(address)
 
     def assign_operation(self, token_name, token_line):
         self.executor.add_three_address_code(
-            operator='ASSIGN', op1=self.SS[-1], op2=self.SS[-2], op3=None, index=None,
+            operator='ASSIGN', op1=self.semantic_stack[-1], op2=self.semantic_stack[-2], op3=None, index=None,
             debug='assign_operation', increase_index=True)
-        self.SS.pop()
+        self.semantic_stack.pop()
 
     def multiply(self, token_line, token_name):
         res = self.get_temp(initialize=False, debug='multiply')
         self.in_multiplication = True
-        self.type_mismatch((token_line, token_name), self.SS[-2], self.SS[-1])
+        self.executor.type_mismatch(token_line, self.semantic_stack[-2], self.semantic_stack[-1], self.in_multiplication)
         self.in_multiplication = False
         self.executor.add_three_address_code(
-            operator='MULT', op1=self.SS[-1], op2=self.SS[-2], op3=res, index=None, debug='multiply',
+            operator='MULT', op1=self.semantic_stack[-1], op2=self.semantic_stack[-2], op3=res, index=None,
+            debug='multiply',
             increase_index=True
         )
-        self.SS.pop(), self.SS.pop(), self.SS.append(res)
+        self.semantic_stack.pop(), self.semantic_stack.pop(), self.semantic_stack.append(res)
 
     def define_array_argument(self, token_name, token_line):
         temp = self.address_manager.get_last_id_in_symbol_table()
@@ -224,7 +292,7 @@ class CodeGen:
         self.address_manager.extend_symbol_table((temp[0], 'int*', temp[2], temp[3]))
 
     def array_index(self, token_line, token_name):
-        idx, array_address = self.SS.pop(), self.SS.pop()
+        idx, array_address = self.semantic_stack.pop(), self.semantic_stack.pop()
         temp, result = self.get_temp(initialize=False, debug='array_index'), self.get_temp(initialize=False,
                                                                                            debug='array_index')
         self.executor.add_three_address_code(
@@ -236,29 +304,30 @@ class CodeGen:
         self.executor.add_three_address_code(
             operator='ADD', op1=result, op2=temp, op3=result, index=None,
             debug='array_index', increase_index=True)
-        self.SS.append(f'@{result}')
+        self.semantic_stack.append(f'@{result}')
 
     def save(self, token_name, token_line):
-        self.SS.append(self.address_manager.get_index())
+        self.semantic_stack.append(self.address_manager.get_index())
         self.address_manager.increase_index()
 
     def start_repeat(self, token_name, token_line):
-        self.SS.append(self.address_manager.get_index())
+        self.semantic_stack.append(self.address_manager.get_index())
         self.in_repeat.append(1)
         self.break_stack.append('b')
 
     def end_repeat(self, token_name, token_line):
-        self.SS.append(self.address_manager.get_index())
+        self.semantic_stack.append(self.address_manager.get_index())
         self.address_manager.increase_index()
 
         self.executor.add_three_address_code(
-            operator='JPF', op1=self.SS[-2], op2=self.SS[-3], op3=None, index=int(self.SS[-1]), debug='end_repeat'
+            operator='JPF', op1=self.semantic_stack[-2], op2=self.semantic_stack[-3], op3=None,
+            index=int(self.semantic_stack[-1]), debug='end_repeat'
         )
         self.executor.add_three_address_code(
             operator='JP', op1=self.address_manager.get_index() + 1, op2=None, op3=None, index=None, debug='end_repeat'
         )
         self.address_manager.increase_index()
-        self.SS.pop(), self.SS.pop(), self.SS.pop()
+        self.semantic_stack.pop(), self.semantic_stack.pop(), self.semantic_stack.pop()
 
         latest_block = len(self.break_stack) - self.break_stack[::-1].index('b') - 1
         for index in self.break_stack[latest_block + 1:]:
@@ -269,52 +338,52 @@ class CodeGen:
         self.in_repeat.pop()
 
     def jpf_save(self, token_name, token_line):
-        dest = self.SS.pop()
-        src = self.SS.pop()
+        dest = self.semantic_stack.pop()
+        src = self.semantic_stack.pop()
         self.executor.add_three_address_code(
             operator='JPF', op1=src, op2=self.address_manager.get_index() + 1, op3=None, index=dest, debug='jpf_save'
         )
-        self.SS.append(self.address_manager.get_index())
+        self.semantic_stack.append(self.address_manager.get_index())
         self.address_manager.increase_index()
 
     def jump(self, token_name, token_line):
-        dest = int(self.SS.pop())
+        dest = int(self.semantic_stack.pop())
         self.executor.add_three_address_code(
             operator='JP', op1=self.address_manager.get_index(), op2=None, op3=None, index=dest, debug='jump'
         )
 
     def break_loop(self, token_line, token_name):
-        self.break_check((token_line, token_name))
+        self.executor.break_check(token_line, self.in_repeat)
         self.break_stack.append(self.address_manager.get_index())
         self.address_manager.increase_index()
 
     def clean_up(self, token_name, token_line):
-        self.SS.pop()
+        self.semantic_stack.pop()
 
     def call_func(self, token_line, token_name):
-        if self.SS[-2] == 'output':
+        if self.semantic_stack[-2] == 'output':
             self.executor.add_three_address_code(
-                operator='PRINT', op1=self.SS.pop(), op2=None, op3=None, index=None,
+                operator='PRINT', op1=self.semantic_stack.pop(), op2=None, op3=None, index=None,
                 debug='call_func', increase_index=True)
-        if self.SS[-1] == 'output':
+        if self.semantic_stack[-1] == 'output':
             return
         args, attributes = [], []
-        for i in self.SS[::-1]:
+        for i in self.semantic_stack[::-1]:
             if isinstance(i, list):
                 attributes = i
                 break
             args = [i] + args
-        self.parameter_num_matching((token_line, token_name), args, attributes)
-        print('call_func', args, attributes, self.SS)
+        self.executor.parameter_num_matching(token_line, args, attributes)
+        print('call_func', args, attributes, self.semantic_stack)
         for var, arg in zip(attributes[1], args):
-            self.parameter_type_matching((token_line, token_name), var, arg, attributes[1].index(var) + 1)
+            self.executor.parameter_type_matching(token_line, var, arg, attributes[1].index(var) + 1, self.get_func_name(var))
             self.executor.add_three_address_code(
                 operator='ASSIGN', op1=arg, op2=var[2], op3=None, index=None, debug='call_func0',
                 increase_index=True
             )
-            self.SS.pop()
+            self.semantic_stack.pop()
         for i in range(len(args) - len(attributes[1]) + 1):
-            self.SS.pop()
+            self.semantic_stack.pop()
         self.executor.add_three_address_code(
             operator='ASSIGN', op1=f'#{self.address_manager.get_index() + 3}', op2=attributes[2], op3=None,
             index=None, debug='call_func1', increase_index=True
@@ -336,22 +405,22 @@ class CodeGen:
             operator='ASSIGN', op1=attributes[0], op2=result, op3=None,
             index=None, debug='call_func2', increase_index=True
         )
-        self.SS.append(result)
+        self.semantic_stack.append(result)
 
     def start_params(self, token_name, token_line):
         self.in_params = True
-        func_name = self.SS.pop()
-        self.SS.append(self.address_manager.get_index())
+        func_name = self.semantic_stack.pop()
+        self.semantic_stack.append(self.address_manager.get_index())
         self.address_manager.increase_index()
-        self.SS.append(func_name)
+        self.semantic_stack.append(func_name)
         self.address_manager.extend_symbol_table('s')
 
     def push_index(self, token_name, token_line):
-        self.SS.append(f'#{self.address_manager.get_index()}')
+        self.semantic_stack.append(f'#{self.address_manager.get_index()}')
 
     def save_return(self, token_name, token_line):
-        self.return_stack.append((self.address_manager.get_index(), self.SS[-1]))
-        self.SS.pop()
+        self.return_stack.append((self.address_manager.get_index(), self.semantic_stack[-1]))
+        self.semantic_stack.pop()
         print('save_return', self.address_manager.get_ids_from_symbol_table())
         self.address_manager.increase_index(2)
 
@@ -360,22 +429,23 @@ class CodeGen:
         return_address = self.get_temp(initialize=False, debug='start_function')
         current_index = self.address_manager.get_index()
         return_value = self.get_temp(initialize=False, debug='start_function')
-        self.SS.append(return_value)
-        self.SS.append(return_address)
-        func_name = self.SS[-3]
+        self.semantic_stack.append(return_value)
+        self.semantic_stack.append(return_address)
+        func_name = self.semantic_stack[-3]
         symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
         args_start_idx = symbol_table_ids.index('s')
         func_args = symbol_table_ids[args_start_idx + 1:]
         symbol_table_ids.pop(args_start_idx)
         symbol_table_ids.append(
-            (func_name, 'function', [return_value, func_args, return_address, current_index], self.current_scope, self.id_type[1]))
+            (func_name, 'function', [return_value, func_args, return_address, current_index], self.current_scope,
+             self.id_type[1]))
         print('start_function', symbol_table_ids)
         self.return_stack.append('b')
 
     def return_from_func(self, token_name, token_line):
         latest_func = len(self.return_stack) - self.return_stack[::-1].index('b') - 1
-        return_value = self.SS[-2]
-        return_address = self.SS[-1]
+        return_value = self.semantic_stack[-2]
+        return_address = self.semantic_stack[-1]
         for item in self.return_stack[latest_func + 1:]:
             self.executor.add_three_address_code(
                 operator='ASSIGN', op1=item[1], op2=return_value, op3=None, index=item[0], debug='return_from_func0'
@@ -386,98 +456,28 @@ class CodeGen:
             )
         self.return_stack = self.return_stack[:latest_func]
 
-        if self.SS[-3] != 'main':
-            return_address = self.SS[-1]
+        if self.semantic_stack[-3] != 'main':
+            return_address = self.semantic_stack[-1]
             self.executor.add_three_address_code(
                 operator='JP', op1='@' + str(return_address), op2=None, op3=None, index=None,
                 debug='return_from_func1', increase_index=True)
 
-        self.SS.pop(), self.SS.pop(), self.SS.pop()
+        self.semantic_stack.pop(), self.semantic_stack.pop(), self.semantic_stack.pop()
         symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
         for item in symbol_table_ids[::-1]:
             if item[1] == 'function' and item[0] == 'main':
-                index = self.SS.pop()
+                index = self.semantic_stack.pop()
                 temp = self.get_temp(initialize=False, debug='return_from_func1')
                 self.executor.add_three_address_code(
                     operator='ASSIGN', op1='#0', op2=temp, op3=None, index=index, debug='return_from_func1'
                 )
                 return
             break
-        index = self.SS.pop()
+        index = self.semantic_stack.pop()
         self.executor.add_three_address_code(
             operator='JP', op1=self.address_manager.get_index(), op2=None, op3=None, index=index,
             debug='return_from_func2',
         )
-
-    def scope_check(self, lookahead):
-        if self.address_manager.is_in_symbol_table(lookahead[1], self.current_scope) or lookahead[1] == 'output':
-            return
-        self.semantic_errors.append(f'#{lookahead[0]}: Semantic Error! \'{lookahead[1]}\' is not defined.')
-
-    def void_check(self, var_id):
-        if self.id_type[1] == 'void':
-            self.semantic_errors.append(f'#{self.id_type[0]}: Semantic Error! Illegal type of void for \'{var_id}\'.')
-
-    def break_check(self, lookahead):
-        if len(self.in_repeat) > 0:
-            return
-        self.semantic_errors.append(
-            f'#{lookahead[0]}: Semantic Error! No \'repeat ... until\' found for \'break\'.')
-
-    def type_mismatch(self, lookahead, operand_1, operand_2):
-        if operand_2 is None or operand_1 is None:
-            return
-        operand_2_type = 'int'
-        operand_1_type = 'int'
-        symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
-        if not operand_1.startswith('#'):
-            for s in symbol_table_ids:
-                if s[2] == operand_1:
-                    operand_1_type = s[1]
-                    break
-        if not operand_2.startswith('#'):
-            for s in symbol_table_ids:
-                if s[2] == operand_2:
-                    operand_2_type = s[1]
-                    break
-
-        if operand_2_type != operand_1_type:
-            operand_1_type = 'array' if operand_1_type == 'int*' else operand_1_type
-            operand_2_type = 'array' if operand_2_type == 'int*' else operand_2_type
-            if self.in_multiplication:
-                self.semantic_errors.append(
-                    f'#{lookahead[0]}: Semantic Error! Type mismatch in operands, Got array instead of int.')
-            else:
-                self.semantic_errors.append(
-                    f'#{lookahead[0]}: Semantic Error! Type mismatch in operands, Got {operand_2_type} instead of {operand_1_type}.')
-
-    def parameter_num_matching(self, lookahead, args, attributes):
-        func_name = ''
-        symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
-        for i in symbol_table_ids:
-            if i[2] == attributes:
-                func_name = i[0]
-        func_args = []
-        for i in attributes:
-            if isinstance(i, list):
-                func_args = i
-        if len(func_args) != len(args):
-            self.semantic_errors.append(
-                f'#{lookahead[0]}: Semantic Error! Mismatch in numbers of arguments of \'{func_name}\'.')
-
-    def parameter_type_matching(self, lookahead, var, arg, num):
-        if arg.startswith('#'):
-            if var[1] != 'int':
-                var_type = 'array' if var[1] == 'int*' else var[1]
-                self.semantic_errors.append(
-                    f'#{lookahead[0]}: Semantic Error! Mismatch in type of argument {num} of \'{self.get_func_name(var)}\'. Expected \'{var_type}\' but got \'int\' instead.')
-        else:
-            for rec in self.address_manager.get_ids_from_symbol_table():
-                if rec[2] == arg and rec[1] != var[1]:
-                    type = 'array' if rec[1] == 'int*' else rec[1]
-                    var_type = 'array' if var[1] == 'int*' else var[1]
-                    self.semantic_errors.append(
-                        f'#{lookahead[0]}: Semantic Error! Mismatch in type of argument {num} of \'{self.get_func_name(var)}\'. Expected \'{var_type}\' but got \'{type}\' instead.')
 
     def get_func_name(self, var):
         for rec in self.address_manager.get_ids_from_symbol_table():
