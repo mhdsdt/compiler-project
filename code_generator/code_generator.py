@@ -35,6 +35,8 @@ class AddressManager:
     def find_symbol_address(self, symbol):
         if symbol == 'output':
             return symbol
+        if symbol == 'arr':
+            print('symbol_table', self.__symbol_table['ID'])
         for i in self.__symbol_table['ID'][::-1]:
             if symbol == i[0]:
                 return i[2]
@@ -89,8 +91,9 @@ class CodeGen:
         self.current_scope = 0
         self.return_stack = []
         self.id_type = 'void'
-        self.is_loop = []
-        self.is_mult = False
+        self.in_repeat = []
+        self.in_multiplication = False
+        self.in_params = False
         self.call_sequence = []
         self.methods = {
             '#get_id_type': self.get_id_type,
@@ -135,11 +138,6 @@ class CodeGen:
     def get_temp(self, count=1, initialize=True, debug=None):
         begin_address = str(self.address_manager.get_temp_address())
         for _ in range(count):
-            # if initialize:
-            # self.executor.add_three_address_code(
-            #     operator='ASSIGN', op1='#0', op2=str(self.address_manager.get_temp_address()), op3=None, index=None,
-            #     debug=debug, increase_index=True
-            #     )
             self.address_manager.increase_temp_address()
         return begin_address
 
@@ -147,7 +145,11 @@ class CodeGen:
         var_id = self.SS.pop()
         self.void_check(var_id)
         address = self.get_temp(initialize=False, debug='define_variable')
-        self.address_manager.extend_symbol_table((var_id, 'int', address, self.current_scope))
+        if self.in_params:
+            scope = self.current_scope + 1
+        else:
+            scope = self.current_scope
+        self.address_manager.extend_symbol_table((var_id, 'int', address, scope))
 
     def define_array(self, token_name, token_line):
         array_size, array_id = int(self.SS.pop()[1:]), self.SS.pop()
@@ -170,6 +172,7 @@ class CodeGen:
     def get_id(self, token_line, token_name):
         self.scope_check((token_line, token_name))
         # print('get_id', token_name, self.address_manager.find_symbol_address(token_name))
+        print('get_id', token_name, self.current_scope, self.SS)
         self.SS.append(self.address_manager.find_symbol_address(token_name))
 
     def push_num(self, token_line, token_name):
@@ -190,13 +193,11 @@ class CodeGen:
         raise Exception(f"in get_equivalent_operator operator == {operator}, How this is possible?")
 
     def make_op(self, token_line, token_name):
-        operand_2 = self.SS.pop()
-        operator = self.SS.pop()
-        operand_1 = self.SS.pop()
-        self.type_mismatch((token_line, token_name), operand_1, operand_2)
+        op2, operator, op1 = self.SS.pop(), self.SS.pop(), self.SS.pop()
+        self.type_mismatch((token_line, token_name), op1, op2)
         address = self.get_temp(initialize=False, debug='make_op')
         self.executor.add_three_address_code(
-            operator=self.get_equivalent_operator(operator), op1=operand_1, op2=operand_2, op3=address, index=None,
+            operator=self.get_equivalent_operator(operator), op1=op1, op2=op2, op3=address, index=None,
             debug='make_op', increase_index=True)
         self.SS.append(address)
 
@@ -208,9 +209,9 @@ class CodeGen:
 
     def multiply(self, token_line, token_name):
         res = self.get_temp(initialize=False, debug='multiply')
-        self.is_mult = True
+        self.in_multiplication = True
         self.type_mismatch((token_line, token_name), self.SS[-2], self.SS[-1])
-        self.is_mult = False
+        self.in_multiplication = False
         self.executor.add_three_address_code(
             operator='MULT', op1=self.SS[-1], op2=self.SS[-2], op3=res, index=None, debug='multiply',
             increase_index=True
@@ -243,7 +244,7 @@ class CodeGen:
 
     def start_repeat(self, token_name, token_line):
         self.SS.append(self.address_manager.get_index())
-        self.is_loop.append(1)
+        self.in_repeat.append(1)
         self.break_stack.append('b')
 
     def end_repeat(self, token_name, token_line):
@@ -265,7 +266,7 @@ class CodeGen:
                 operator='JP', op1=self.address_manager.get_index(), op2=None, op3=None, index=index, debug='end_repeat'
             )
         self.break_stack = self.break_stack[:latest_block]
-        self.is_loop.pop()
+        self.in_repeat.pop()
 
     def jpf_save(self, token_name, token_line):
         dest = self.SS.pop()
@@ -304,6 +305,7 @@ class CodeGen:
                 break
             args = [i] + args
         self.parameter_num_matching((token_line, token_name), args, attributes)
+        print('call_func', args, attributes, self.SS)
         for var, arg in zip(attributes[1], args):
             self.parameter_type_matching((token_line, token_name), var, arg, attributes[1].index(var) + 1)
             self.executor.add_three_address_code(
@@ -314,18 +316,21 @@ class CodeGen:
         for i in range(len(args) - len(attributes[1]) + 1):
             self.SS.pop()
         self.executor.add_three_address_code(
-            operator='ASSIGN', op1=f'#{self.address_manager.get_index() + 2}', op2=attributes[2], op3=None,
+            operator='ASSIGN', op1=f'#{self.address_manager.get_index() + 3}', op2=attributes[2], op3=None,
             index=None, debug='call_func1', increase_index=True
+        )
+        self.executor.add_three_address_code(
+            operator='ASSIGN', op1='#0', op2=attributes[0], op3=None,
+            index=None, debug='call_func2', increase_index=True
         )
         self.executor.add_three_address_code(
             operator='JP', op1=attributes[-1], op2=None, op3=None,
             index=None, debug='call_func', increase_index=True
         )
-        symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
-        print(token_name, symbol_table_ids)
-        for item in symbol_table_ids[::-1]:
-            if item[0] == token_name:
-                print(item)
+        # print(token_name, symbol_table_ids)
+        # for item in symbol_table_ids[::-1]:
+        #     if item[0] == token_name:
+        #         print(item)
         result = self.get_temp(initialize=False, debug='call_func')
         self.executor.add_three_address_code(
             operator='ASSIGN', op1=attributes[0], op2=result, op3=None,
@@ -334,6 +339,7 @@ class CodeGen:
         self.SS.append(result)
 
     def start_params(self, token_name, token_line):
+        self.in_params = True
         func_name = self.SS.pop()
         self.SS.append(self.address_manager.get_index())
         self.address_manager.increase_index()
@@ -346,9 +352,11 @@ class CodeGen:
     def save_return(self, token_name, token_line):
         self.return_stack.append((self.address_manager.get_index(), self.SS[-1]))
         self.SS.pop()
+        print('save_return', self.address_manager.get_ids_from_symbol_table())
         self.address_manager.increase_index(2)
 
     def start_function(self, token_name, token_line):
+        self.in_params = False
         return_address = self.get_temp(initialize=False, debug='start_function')
         current_index = self.address_manager.get_index()
         return_value = self.get_temp(initialize=False, debug='start_function')
@@ -359,9 +367,9 @@ class CodeGen:
         args_start_idx = symbol_table_ids.index('s')
         func_args = symbol_table_ids[args_start_idx + 1:]
         symbol_table_ids.pop(args_start_idx)
-        print(self.id_type)
         symbol_table_ids.append(
             (func_name, 'function', [return_value, func_args, return_address, current_index], self.current_scope, self.id_type[1]))
+        print('start_function', symbol_table_ids)
         self.return_stack.append('b')
 
     def return_from_func(self, token_name, token_line):
@@ -411,7 +419,7 @@ class CodeGen:
             self.semantic_errors.append(f'#{self.id_type[0]}: Semantic Error! Illegal type of void for \'{var_id}\'.')
 
     def break_check(self, lookahead):
-        if len(self.is_loop) > 0:
+        if len(self.in_repeat) > 0:
             return
         self.semantic_errors.append(
             f'#{lookahead[0]}: Semantic Error! No \'repeat ... until\' found for \'break\'.')
@@ -436,7 +444,7 @@ class CodeGen:
         if operand_2_type != operand_1_type:
             operand_1_type = 'array' if operand_1_type == 'int*' else operand_1_type
             operand_2_type = 'array' if operand_2_type == 'int*' else operand_2_type
-            if self.is_mult:
+            if self.in_multiplication:
                 self.semantic_errors.append(
                     f'#{lookahead[0]}: Semantic Error! Type mismatch in operands, Got array instead of int.')
             else:
@@ -485,5 +493,6 @@ class CodeGen:
         symbol_table_ids = self.address_manager.get_ids_from_symbol_table()
         for record in symbol_table_ids[::-1]:
             if record[3] == self.current_scope:
-                del symbol_table_ids[-1]
+                symbol_table_ids.remove(record)
+        print('pop_scope', symbol_table_ids)
         self.current_scope -= 1
