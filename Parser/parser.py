@@ -1,3 +1,5 @@
+import time
+
 from anytree import Node, RenderTree, PreOrderIter
 
 from code_generator.code_generator import CodeGen
@@ -84,11 +86,14 @@ class Parser:
                 self.last_token = self.get_next_token()
 
     def parse(self):
+        start = time.time()
         self.stack.append(self.root)
         self.last_token = self.get_next_token()
         try:
             while self.stack:
                 self._update_stack()
+                if time.time() - start > 5000:
+                    return 
         except LastTokenException:
             for element in self.stack:
                 self.remove_and_reformat_tree(element)
